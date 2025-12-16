@@ -1,0 +1,69 @@
+backend:
+  name: git-gateway
+  branch: main
+
+local_backend: true
+
+media_folder: "public/assets"
+public_folder: "/assets"
+
+collections:
+  - name: "tvs"
+    label: "TV Settings"
+    description: "Manage slides for each TV"
+    files:
+      - file: "src/data/tv1.json"
+        label: "TV 1"
+        name: "tv1"
+        fields:
+          - name: "slides"
+            label: "Slides"
+            widget: "list"
+            fields:
+              - {label: "ID", name: "id", widget: "string", default: "", hint: "Unique ID"}
+              - {label: "Type", name: "type", widget: "select", options: ["image", "video"], default: "image"}
+              - {label: "Media", name: "src", widget: "image"}
+              - {label: "Duration (sec)", name: "duration", widget: "number", default: 10, required: false}
+              - {label: "Note", name: "note", widget: "string", required: false}
+      
+      - file: "src/data/tv2.json"
+        label: "TV 2"
+        name: "tv2"
+        fields:
+          - name: "slides"
+            label: "Slides"
+            widget: "list"
+            fields:
+              - {label: "ID", name: "id", widget: "string", default: "", hint: "Unique ID"}
+              - {label: "Type", name: "type", widget: "select", options: ["image", "video"], default: "image"}
+              - {label: "Media", name: "src", widget: "image"}
+              - {label: "Duration (sec)", name: "duration", widget: "number", default: 10, required: false}
+              - {label: "Note", name: "note", widget: "string", required: false}
+
+      - file: "src/data/tv3.json"
+        label: "TV 3"
+        name: "tv3"
+        fields:
+          - name: "slides"
+            label: "Slides"
+            widget: "list"
+            fields:
+              - {label: "ID", name: "id", widget: "string", default: "", hint: "Unique ID"}
+              - {label: "Type", name: "type", widget: "select", options: ["image", "video"], default: "image"}
+              - {label: "Media", name: "src", widget: "image"}
+              - {label: "Duration (sec)", name: "duration", widget: "number", default: 10, required: false}
+              - {label: "Note", name: "note", widget: "string", required: false}
+
+      - file: "src/data/tv4.json"
+        label: "TV 4"
+        name: "tv4"
+        fields:
+          - name: "slides"
+            label: "Slides"
+            widget: "list"
+            fields:
+              - {label: "ID", name: "id", widget: "string", default: "", hint: "Unique ID"}
+              - {label: "Type", name: "type", widget: "select", options: ["image", "video"], default: "image"}
+              - {label: "Media", name: "src", widget: "image"}
+              - {label: "Duration (sec)", name: "duration", widget: "number", default: 10, required: false}
+              - {label: "Note", name: "note", widget: "string", required: false}
