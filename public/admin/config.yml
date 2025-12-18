@@ -1,5 +1,6 @@
 backend:
-  name: git-gateway
+  name: github
+  repo: cyrusliew/gdtv2
   branch: main
 
 local_backend: true
