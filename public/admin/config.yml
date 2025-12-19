@@ -2,7 +2,7 @@ backend:
   name: github
   repo: cyrusliew/gdtv2
   branch: main
-  base_url: https://cms-oauth-vsvt.vercel.app
+  base_url: https://netlify-cms.adrianub.vercel.app
 
 local_backend: true
 
