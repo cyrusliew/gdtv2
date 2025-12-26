@@ -1,6 +1,8 @@
 backend:
-  name: git-gateway
+  name: github
+  repo: cyrusliew/gdtv2
   branch: main
+  base_url: https://decap-cms-oauth-ashy.vercel.app
 
 local_backend: true
 

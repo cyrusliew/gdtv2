@@ -4,6 +4,9 @@ import tailwindcss from '@tailwindcss/vite'
 import fs from 'fs'
 import path from 'path'
 
+import fs from 'fs';
+import path from 'path';
+
 // Custom plugin to generate version.json
 const versionPlugin = () => {
   const version = { timestamp: Date.now() };
@@ -21,7 +24,7 @@ const versionPlugin = () => {
     },
     writeBundle() {
       fs.writeFileSync(
-        path.resolve(__dirname, 'dist/version.json'),
+        path.join(process.cwd(), 'dist/version.json'),
         JSON.stringify(version)
       );
     }
