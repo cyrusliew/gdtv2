@@ -22,7 +22,6 @@ export default defineConfig({
     tina: {
       mediaRoot: "assets",
       publicFolder: "public",
-      static: true,
     },
   },
   // See docs on content modeling for more info on how to setup new content models: https://tina.io/docs/r/content-modelling-collections/
