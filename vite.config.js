@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import fs from 'fs'
+import path from 'path'
 
 // Custom plugin to generate version.json
 const versionPlugin = () => {
@@ -18,8 +20,6 @@ const versionPlugin = () => {
       });
     },
     writeBundle() {
-      const fs = require('fs');
-      const path = require('path');
       fs.writeFileSync(
         path.resolve(__dirname, 'dist/version.json'),
         JSON.stringify(version)
