@@ -13,6 +13,13 @@
       "src": "/assets/lto-minini__merch_digital_tv_h.jpg",
       "duration": 15,
       "note": "Minini Merch"
+    },
+    {
+      "id": "3",
+      "type": "image",
+      "src": "/assets/biscoff-kv-digital_tv_h-.jpg",
+      "duration": 15,
+      "note": "Biscoff"
     }
   ]
 }
