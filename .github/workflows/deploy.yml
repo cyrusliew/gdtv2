@@ -22,6 +22,7 @@ jobs:
     env:
       NEXT_PUBLIC_TINA_CLIENT_ID: ${{ vars.TINA_CLIENT_ID }}
       TINA_TOKEN: ${{ secrets.TINA_TOKEN }}
+      TINA_BASE_PATH: ${{ vars.TINA_BASE_PATH }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

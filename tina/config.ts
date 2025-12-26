@@ -18,7 +18,7 @@ export default defineConfig({
   build: {
     outputFolder: "admin",
     publicFolder: "public",
-    basePath: '/gdtv2',
+    basePath: process.env.TINA_BASE_PATH,
   },
   media: {
     tina: {
