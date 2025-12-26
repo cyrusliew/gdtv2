@@ -20,6 +20,13 @@
       "src": "/assets/biscoff-kv-digital_tv_h-.jpg",
       "duration": 15,
       "note": "Biscoff"
+    },
+    {
+      "id": "4",
+      "type": "image",
+      "src": "/assets/lto-lipy_digital_tv_h-1-.jpg",
+      "duration": 15,
+      "note": "LIPY"
     }
   ]
 }
