@@ -4,9 +4,6 @@ import tailwindcss from '@tailwindcss/vite'
 import fs from 'fs'
 import path from 'path'
 
-import fs from 'fs';
-import path from 'path';
-
 // Custom plugin to generate version.json
 const versionPlugin = () => {
   const version = { timestamp: Date.now() };
