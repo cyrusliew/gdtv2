@@ -6,6 +6,12 @@
       "src": "/assets/best-sellers_tv.jpg",
       "duration": 15,
       "note": "Best sellers"
+    },
+    {
+      "id": "coffee",
+      "type": "image",
+      "src": "/assets/coffee-poster-general_tv_2025-2.jpg",
+      "duration": 15
     }
   ]
 }
