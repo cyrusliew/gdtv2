@@ -1,3 +1,11 @@
 {
-    "slides": []
+  "slides": [
+    {
+      "id": "1",
+      "type": "image",
+      "src": "/assets/best-sellers_tv.jpg",
+      "duration": 15,
+      "note": "Best sellers"
+    }
+  ]
 }
