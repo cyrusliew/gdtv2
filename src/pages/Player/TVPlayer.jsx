@@ -164,13 +164,13 @@ export default function TVPlayer() {
 
   if (isLoading) {
     return (
-      <div className="bg-black h-screen w-screen flex items-center justify-center">
+      <div className="bg-primary h-screen w-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-white"></div>
       </div>
     );
   }
 
-  if (slides.length === 0) return <div className="bg-black text-white h-screen flex items-center justify-center text-2xl">No content scheduled</div>;
+  if (slides.length === 0) return <div className="bg-primary text-white h-screen flex items-center justify-center text-2xl">No content scheduled</div>;
 
   const currentSlide = slides[currentIndex];
 
