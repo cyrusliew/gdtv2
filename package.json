@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "tinacms dev -c \"vite\"",
-    "build": "tinacms build && vite build",
+    "build": "npm run resize-images && tinacms build && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "cms": "tinacms dev"
+    "cms": "tinacms dev",
+    "resize-images": "node scripts/resize-images.js"
   },
   "dependencies": {
     "framer-motion": "^12.23.26",
@@ -36,6 +37,7 @@
     "globals": "^16.5.0",
     "postcss": "^8.5.6",
     "postcss-preset-env": "^10.6.0",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.19",
     "terser": "^5.44.1",
     "vite": "^7.2.4"
