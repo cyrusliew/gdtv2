@@ -78,7 +78,7 @@ export default function TVPlayer() {
     const checkVersion = async () => {
       try {
         console.log('Checking version...');
-        const response = await fetch('/version.json');
+        const response = await fetch('/version.json?t=' + Date.now());
         const data = await response.json();
 
         // Set next check time

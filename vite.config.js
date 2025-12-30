@@ -36,7 +36,7 @@ const versionPlugin = () => {
     name: 'version-plugin',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (req.url === '/version.json') {
+        if (req.url.startsWith('/version.json')) {
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(version));
         } else {
