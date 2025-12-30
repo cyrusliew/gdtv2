@@ -29,6 +29,9 @@ const forceTranspile = () => {
 // Custom plugin to generate version.json
 const versionPlugin = () => {
   const version = { timestamp: Date.now() };
+
+  console.log(`\nBuild Version: ${version.timestamp}\n`);
+
   return {
     name: 'version-plugin',
     configureServer(server) {

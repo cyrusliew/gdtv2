@@ -1,4 +1,14 @@
-# React + Vite
+# GDTV2
+
+> [!IMPORTANT]
+> **Target Environment**
+> *   **Device:** LG Signage TV 43UH5J-HP
+> *   **Browser:** Chromium 79
+>
+> This site is explicitly targeted to run on the **LG Signage TV 43UH5J-HP** which uses **Chromium 79**.
+> Please ensure all code and dependencies are compatible with this environment.
+
+## React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
