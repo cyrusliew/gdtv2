@@ -1,11 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
 import fs from 'fs'
 import path from 'path'
-
 import * as babel from '@babel/core'
-
 import legacy from '@vitejs/plugin-legacy'
 
 // Custom plugin to force transpile react-refresh for older browsers
@@ -62,7 +59,6 @@ export default defineConfig({
         presets: [['@babel/preset-env', { targets: { chrome: '79' }, modules: false }]],
       },
     }),
-    tailwindcss(),
     versionPlugin(),
     legacy({
       targets: ['chrome >= 79'],
@@ -79,5 +75,6 @@ export default defineConfig({
   },
   build: {
     target: 'chrome79',
+    cssTarget: 'chrome79',
   },
 })
