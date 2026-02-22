@@ -13,6 +13,12 @@
       "src": "/assets/lto-lipy_digital_tv_h-1-.jpg",
       "duration": 15,
       "note": "LIPY"
+    },
+    {
+      "id": "03-Greek-yogurt",
+      "type": "image",
+      "src": "/assets/GC_GreekYogurt_Digitals_01_OL_TV_H.jpg",
+      "duration": 15
     }
   ]
 }
