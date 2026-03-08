@@ -8,16 +8,15 @@
       "note": "Eggette Waffles"
     },
     {
-      "id": "Lipy",
-      "type": "image",
-      "src": "/assets/lto-lipy_digital_tv_h-1-.jpg",
-      "duration": 15,
-      "note": "LIPY"
-    },
-    {
       "id": "Greek-Yogurt",
       "type": "image",
       "src": "/assets/GC_GreekYogurt_Digitals_01_OL_TV_H.jpg",
+      "duration": 15
+    },
+    {
+      "id": "thai-mango",
+      "type": "image",
+      "src": "/assets/2026 THAI MANGO_DIGITAL_TV_H.jpg",
       "duration": 15
     }
   ]
