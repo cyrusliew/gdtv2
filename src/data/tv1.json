@@ -18,6 +18,12 @@
       "type": "image",
       "src": "/assets/2026 THAI MANGO_DIGITAL_TV_H.jpg",
       "duration": 15
+    },
+    {
+      "id": "3rd-anniversary",
+      "type": "image",
+      "src": "/assets/GC_DOM_3RD_ANNIVERSARY_TV_H.png",
+      "duration": 15
     }
   ]
 }
