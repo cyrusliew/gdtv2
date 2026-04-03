@@ -1,25 +1,6 @@
 {
   "slides": [
     {
-      "id": "Eggette-Waffles",
-      "type": "image",
-      "src": "/assets/egg-waffles-tv.jpg",
-      "duration": 15,
-      "note": "Eggette Waffles"
-    },
-    {
-      "id": "Greek-Yogurt",
-      "type": "image",
-      "src": "/assets/GC_GreekYogurt_Digitals_01_OL_TV_H.jpg",
-      "duration": 15
-    },
-    {
-      "id": "thai-mango",
-      "type": "image",
-      "src": "/assets/2026 THAI MANGO_DIGITAL_TV_H.jpg",
-      "duration": 15
-    },
-    {
       "id": "3rd-anniversary",
       "type": "image",
       "src": "/assets/GC_DOM_3RD_ANNIVERSARY_TV_H.png",
