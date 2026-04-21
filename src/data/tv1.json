@@ -5,6 +5,11 @@
       "type": "image",
       "src": "/assets/egg-waffles-tv.jpg",
       "duration": 15
+    },
+    {
+      "id": "Felix",
+      "type": "video",
+      "src": "/assets/Felix.mp4"
     }
   ]
 }
