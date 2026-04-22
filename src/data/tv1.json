@@ -5,6 +5,12 @@
       "type": "image",
       "src": "/assets/egg-waffles-tv.jpg",
       "duration": 15
+    },
+    {
+      "id": "Eureka",
+      "type": "image",
+      "src": "/assets/200426 GC EUREKA Digital_TV_H.jpg",
+      "duration": 15
     }
   ]
 }
