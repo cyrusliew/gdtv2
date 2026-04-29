@@ -4,29 +4,13 @@
       "id": "Eggette Waffles",
       "type": "image",
       "src": "/assets/FBBA822D-F011-47C9-97F9-9A6CC4E84380.png",
-      "duration": 15,
-      "unpuslish": false
+      "duration": 15
     },
     {
       "id": "Eureka",
       "type": "image",
       "src": "/assets/200426 GC EUREKA Digital_TV_H.jpg",
-      "duration": 15,
-      "unpuslish": false
-    },
-    {
-      "id": "Bobaday1",
-      "type": "image",
-      "src": "/assets/BUBBLE TEA DAY 2026 Digital_TV_H_LEFT.jpg",
-      "duration": 15,
-      "unpuslish": false
-    },
-    {
-      "id": "Bobaday2",
-      "type": "image",
-      "src": "/assets/BUBBLE%20TEA%20DAY%202026%20Digital_TV_H_RIGHT.jpg",
-      "duration": 15,
-      "unpuslish": false
+      "duration": 15
     }
   ]
 }
