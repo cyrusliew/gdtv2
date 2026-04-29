@@ -77,7 +77,13 @@ export default defineConfig({
                 label: "Duration (sec)",
                 type: "number"
               },
-              { name: "note", label: "Note", type: "string" }
+              { name: "note", label: "Note", type: "string" },
+              {
+                name: "unpublish",
+                label: "Unpublish",
+                type: "boolean",
+                description: "Hide this slide from the live TV rotation",
+              }
             ]
           }
         ],

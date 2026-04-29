@@ -30,7 +30,8 @@ export default function TVPlayer() {
     const module = tvDataModules[path];
 
     if (module && module.slides) {
-      setSlides(module.slides);
+      const visibleSlides = module.slides.filter((slide) => !slide.unpublish);
+      setSlides(visibleSlides);
     } else {
       console.warn(`No configuration found for ${tvId}`);
       setSlides([]);
@@ -146,6 +147,10 @@ export default function TVPlayer() {
     setCurrentIndex((prev) => (prev + 1) % slides.length);
   };
 
+  const handleNextSlide = () => {
+    setCurrentIndex((prev) => (prev + 1) % slides.length);
+  };
+
   const handleDebugTrigger = () => {
     setDebugClicks((prev) => prev + 1);
 
@@ -180,6 +185,14 @@ export default function TVPlayer() {
 
   return (
     <div className="bg-black h-screen w-screen overflow-hidden flex items-center justify-center relative">
+      {/* Hidden fullscreen next-slide button */}
+      <button
+        type="button"
+        className="absolute inset-0 z-40 w-full h-full opacity-0"
+        aria-label="Next slide"
+        onClick={handleNextSlide}
+      />
+
       {/* Debug Trigger Area (Top-Left) */}
       <div
         className="absolute top-0 left-0 w-24 h-24 z-50 cursor-default"
