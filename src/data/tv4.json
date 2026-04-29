@@ -5,20 +5,23 @@
       "type": "image",
       "src": "/assets/BEST SELLERS 2026_TV.jpg",
       "duration": 15,
-      "note": "Best sellers"
+      "note": "Best sellers",
+      "unpuslish": false
     },
     {
       "id": "coffee",
       "type": "image",
       "src": "/assets/COFFEE POSTER 2026_TV_General.jpg",
-      "duration": 15
+      "duration": 15,
+      "unpuslish": false
     },
     {
       "id": "charged-fusion",
       "type": "image",
       "src": "/assets/redbull-x-gongcha-launch-digital__tv_h-2.jpg",
       "duration": 15,
-      "note": "Charged Fusion"
+      "note": "Charged Fusion",
+      "unpuslish": false
     }
   ]
 }
