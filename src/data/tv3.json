@@ -3,7 +3,8 @@
     {
       "id": "1",
       "type": "image",
-      "src": "/assets/2026 Menu_TV FULL_Horizontal-02.jpg"
+      "src": "/assets/2026 Menu_TV FULL_Horizontal-02.jpg",
+      "unpublish": true
     },
     {
       "id": "bobaday2",
