@@ -11,6 +11,12 @@
       "type": "image",
       "src": "/assets/200426 GC EUREKA Digital_TV_H.jpg",
       "duration": 15
+    },
+    {
+      "id": "Bobaday1",
+      "type": "image",
+      "src": "/assets/BUBBLE TEA DAY 2026 Digital_TV_H_LEFT.jpg",
+      "duration": 15
     }
   ]
 }
