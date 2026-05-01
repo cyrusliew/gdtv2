@@ -4,12 +4,7 @@
       "id": "1",
       "type": "image",
       "src": "/assets/2026 Menu_TV FULL_Horizontal-02.jpg",
-      "unpublish": true
-    },
-    {
-      "id": "bobaday2",
-      "type": "image",
-      "src": "/assets/BUBBLE%20TEA%20DAY%202026%20Digital_TV_H_RIGHT.jpg"
+      "unpublish": false
     }
   ]
 }
