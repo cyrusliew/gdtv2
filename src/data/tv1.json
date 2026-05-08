@@ -11,6 +11,11 @@
       "type": "image",
       "src": "/assets/200426 GC EUREKA Digital_TV_H.jpg",
       "duration": 15
+    },
+    {
+      "id": "Biscoff ",
+      "type": "image",
+      "src": "/assets/BISCOFF KV_No Cookie_H.jpg"
     }
   ]
 }
