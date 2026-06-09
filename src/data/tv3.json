@@ -5,6 +5,11 @@
       "type": "image",
       "src": "/assets/2026 Menu_TV FULL_Horizontal-02.jpg",
       "unpublish": false
+    },
+    {
+      "id": "supergirl-r",
+      "type": "image",
+      "src": "/assets/GCSG2026_DIGITAL_TV H_R.jpg"
     }
   ]
 }
