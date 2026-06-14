@@ -20,7 +20,8 @@
     {
       "id": "Felix",
       "type": "image",
-      "src": "/assets/GC HAPPY SERIES DIGITAL_TV_H.jpg"
+      "src": "/assets/GC HAPPY SERIES DIGITAL_TV_H.jpg",
+      "unpublish": true
     }
   ]
 }
