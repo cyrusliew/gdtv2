@@ -15,7 +15,8 @@
     {
       "id": "Redbull-winter",
       "type": "image",
-      "src": "/assets/GC x REDBULL WINTER EDITION FORMATS_TV H.jpg"
+      "src": "/assets/GC x REDBULL WINTER EDITION FORMATS_TV H.jpg",
+      "unpublish": true
     }
   ]
 }
