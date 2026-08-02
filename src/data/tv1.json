@@ -17,6 +17,11 @@
       "type": "image",
       "src": "/assets/GC x REDBULL WINTER EDITION FORMATS_TV H.jpg",
       "unpublish": true
+    },
+    {
+      "id": "HarryPotter",
+      "type": "image",
+      "src": "/assets/HARRY POTTER_Adaptations_TV_H.jpg"
     }
   ]
 }
