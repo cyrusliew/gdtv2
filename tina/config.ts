@@ -28,29 +28,12 @@ export default defineConfig({
   schema: {
     collections: [
       {
-        name: "post",
-        label: "Posts",
-        path: "content/posts",
-        fields: [
-          {
-            type: "string",
-            name: "title",
-            label: "Title",
-            isTitle: true,
-            required: true,
-          },
-          {
-            type: "rich-text",
-            name: "body",
-            label: "Body",
-            isBody: true,
-          },
-        ],
-      },
-      {
         name: "tv",
         label: "TV Settings",
         path: "src/data",
+        match: {
+          include: "tv*",
+        },
         format: "json",
         fields: [
           {
@@ -65,17 +48,12 @@ export default defineConfig({
             },
             fields: [
               { name: "id", label: "ID", type: "string", required: true },
-              {
-                name: "type",
-                label: "Type",
-                type: "string",
-                options: ["image", "video"]
-              },
               { name: "src", label: "Media", type: "image", required: true },
               {
                 name: "duration",
                 label: "Duration (sec)",
-                type: "number"
+                type: "number",
+                description: "Display duration in seconds (defaults to 10s if left empty). Ensure total playlist duration across synced TVs match for lockstep alignment.",
               },
               { name: "note", label: "Note", type: "string" },
               {
@@ -83,9 +61,62 @@ export default defineConfig({
                 label: "Unpublish",
                 type: "boolean",
                 description: "Hide this slide from the live TV rotation",
-              }
-            ]
-          }
+              },
+              {
+                name: "syncGroup",
+                label: "Sync Group / Campaign ID",
+                type: "string",
+                description: "Optional identifier (e.g. 'harry-potter-takeover') to tag slides that participate in multi-screen synced takeovers.",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "takeover",
+        label: "Multi-Screen Takeovers",
+        path: "src/data/takeovers",
+        format: "json",
+        fields: [
+          {
+            name: "title",
+            label: "Campaign Title",
+            type: "string",
+            isTitle: true,
+            required: true,
+          },
+          {
+            name: "duration",
+            label: "Duration (sec)",
+            type: "number",
+            description: "Display duration on all screens in seconds (defaults to 15s if left empty)",
+          },
+          {
+            name: "tv1Media",
+            label: "TV 1 Media Asset (Optional)",
+            type: "image",
+          },
+          {
+            name: "tv2Media",
+            label: "TV 2 Media Asset (Optional)",
+            type: "image",
+          },
+          {
+            name: "tv3Media",
+            label: "TV 3 Media Asset (Optional)",
+            type: "image",
+          },
+          {
+            name: "tv4Media",
+            label: "TV 4 Media Asset (Optional)",
+            type: "image",
+          },
+          {
+            name: "unpublish",
+            label: "Unpublish",
+            type: "boolean",
+            description: "Hide this takeover from rotation on all TVs",
+          },
         ],
       },
     ],

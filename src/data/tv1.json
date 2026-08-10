@@ -2,26 +2,18 @@
   "slides": [
     {
       "id": "Eggette Waffles",
-      "type": "image",
       "src": "/assets/eggette-waffles-trio.png",
       "duration": 15
     },
     {
       "id": "Eureka",
-      "type": "image",
       "src": "/assets/200426 GC EUREKA Digital_TV_H.jpg",
       "duration": 15
     },
     {
       "id": "Redbull-winter",
-      "type": "image",
       "src": "/assets/GC x REDBULL WINTER EDITION FORMATS_TV H.jpg",
       "unpublish": true
-    },
-    {
-      "id": "HarryPotter",
-      "type": "image",
-      "src": "/assets/HARRY POTTER_Adaptations_TV_H.jpg"
     }
   ]
 }

@@ -1,50 +1,80 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
+// eslint-disable-next-line no-unused-vars
 import { AnimatePresence, motion } from 'framer-motion';
 
 // Import all JSON files from the data directory
 const tvDataModules = import.meta.glob('../../data/tv*.json', { eager: true });
+const takeoverModules = import.meta.glob('../../data/takeovers/*.json', { eager: true });
+
+// Auto-detect media type from file extension if explicit type is omitted
+function detectMediaType(src, explicitType) {
+  if (explicitType === 'video' || explicitType === 'image') return explicitType;
+  if (!src) return 'image';
+  return /\.(mp4|webm|ogg|mov|m4v)$/i.test(src) ? 'video' : 'image';
+}
 
 export default function TVPlayer() {
   const { tvId } = useParams();
-  const [slides, setSlides] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isPreloading, setIsPreloading] = useState(true);
 
   // Debug Mode State
   const [debugMode, setDebugMode] = useState(false);
   const [debugClicks, setDebugClicks] = useState(0);
   const [currentVersion, setCurrentVersion] = useState('Unknown');
-  const [slideStartTime, setSlideStartTime] = useState(Date.now());
-  const [currentTime, setCurrentTime] = useState(Date.now());
-  const [nextCheckTime, setNextCheckTime] = useState(Date.now() + 30000);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [nextCheckTime, setNextCheckTime] = useState(() => Date.now() + 30000);
 
   const videoRef = useRef(null);
-  const timeoutRef = useRef(null);
+  const timerRef = useRef(null);
   const debugClickTimeoutRef = useRef(null);
 
-  useEffect(() => {
-    setIsLoading(true);
-    // Construct the path to the specific JSON file
+  // Synchronously compute slides (base slides + active multi-screen takeovers)
+  const slides = useMemo(() => {
     const path = `../../data/${tvId}.json`;
     const module = tvDataModules[path];
+    const baseSlides = module && module.slides
+      ? module.slides
+          .filter((slide) => !slide.unpublish)
+          .map((slide) => ({
+            ...slide,
+            type: detectMediaType(slide.src, slide.type),
+          }))
+      : [];
 
-    if (module && module.slides) {
-      const visibleSlides = module.slides.filter((slide) => !slide.unpublish);
-      setSlides(visibleSlides);
-    } else {
-      console.warn(`No configuration found for ${tvId}`);
-      setSlides([]);
-      setIsLoading(false);
-    }
+    // Process published Multi-Screen Takeovers
+    const takeoverSlides = Object.values(takeoverModules)
+      .map((m) => (m && m.default ? m.default : m))
+      .filter((takeover) => takeover && (takeover.title || takeover.id) && !takeover.unpublish)
+      .map((takeover) => {
+        const mediaSrc = takeover[`${tvId}Media`];
 
-    // Reset index when TV changes
-    setCurrentIndex(0);
+        if (!mediaSrc) return null;
+
+        return {
+          id: takeover.title || takeover.id,
+          type: detectMediaType(mediaSrc, takeover.type),
+          src: mediaSrc,
+          duration: takeover.duration || 15,
+          syncGroup: takeover.title || takeover.id,
+        };
+      })
+      .filter(Boolean);
+
+    return [...baseSlides, ...takeoverSlides];
   }, [tvId]);
 
-  // Preload images
+  const hasImagesToPreload = useMemo(
+    () => slides.some((s) => s.type === 'image'),
+    [slides]
+  );
+
+  const isLoading = hasImagesToPreload && isPreloading;
+
+  // Preload images and manage loading state
   useEffect(() => {
-    if (slides.length === 0) return;
+    if (!hasImagesToPreload) return;
 
     let isMounted = true;
 
@@ -56,14 +86,14 @@ export default function TVPlayer() {
             const img = new Image();
             img.src = slide.src;
             img.onload = resolve;
-            img.onerror = resolve; // Proceed even if fails
+            img.onerror = resolve;
           });
         });
 
       await Promise.all(imagePromises);
 
       if (isMounted) {
-        setIsLoading(false);
+        setIsPreloading(false);
       }
     };
 
@@ -72,17 +102,67 @@ export default function TVPlayer() {
     return () => {
       isMounted = false;
     };
+  }, [slides, hasImagesToPreload]);
+
+  // Calculate total playlist duration and slide time windows
+  const playlistSchedule = useMemo(() => {
+    if (slides.length === 0) return { totalDuration: 0, windows: [] };
+
+    let cumulative = 0;
+    const windows = slides.map((slide) => {
+      const duration = slide.duration || 10;
+      const start = cumulative;
+      const end = cumulative + duration;
+      cumulative = end;
+      return { slide, start, end, duration };
+    });
+
+    return { totalDuration: cumulative, windows };
   }, [slides]);
 
-  // Check for updates
+  // ── Deterministic Time-Based Schedule Sync ──────────────────────────────
+  useEffect(() => {
+    if (isLoading || playlistSchedule.totalDuration === 0) return;
+
+    const syncToSchedule = () => {
+      const nowMs = Date.now();
+      setCurrentTime(nowMs);
+
+      const totalDuration = playlistSchedule.totalDuration;
+      const nowSec = nowMs / 1000;
+      const currentCycleTime = nowSec % totalDuration;
+
+      // Find active slide based on current cycle timestamp
+      const windowIndex = playlistSchedule.windows.findIndex(
+        (w) => currentCycleTime >= w.start && currentCycleTime < w.end
+      );
+
+      const activeIndex = windowIndex !== -1 ? windowIndex : 0;
+      setCurrentIndex(activeIndex);
+
+      // Calculate remaining milliseconds until the end of the active slide window
+      const activeWindow = playlistSchedule.windows[activeIndex];
+      const remainingSec = activeWindow ? activeWindow.end - currentCycleTime : 10;
+      const msUntilNextSlide = Math.max(50, Math.ceil(remainingSec * 1000));
+
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(syncToSchedule, msUntilNextSlide);
+    };
+
+    syncToSchedule();
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [isLoading, playlistSchedule]);
+
+  // Poll version for updates
   useEffect(() => {
     const checkVersion = async () => {
       try {
-        console.log('Checking version...');
         const response = await fetch('/version.json?t=' + Date.now());
         const data = await response.json();
 
-        // Set next check time
         setNextCheckTime(Date.now() + 30000);
 
         if (currentVersion === 'Unknown') {
@@ -96,56 +176,19 @@ export default function TVPlayer() {
       }
     };
 
-    // Initial check
     checkVersion();
-
-    // Poll every 30 seconds
     const intervalId = setInterval(checkVersion, 30000);
-
     return () => clearInterval(intervalId);
   }, [currentVersion]);
 
-  // Timer for debug mode
+  // Clock tick for debug overlay
   useEffect(() => {
     if (!debugMode) return;
     const timerId = setInterval(() => {
       setCurrentTime(Date.now());
-    }, 100); // 100ms for smoother updates if we wanted, but 1s is fine. sticking to 100ms for responsiveness.
+    }, 100);
     return () => clearInterval(timerId);
   }, [debugMode]);
-
-  // Handle slide transition logic
-  useEffect(() => {
-    if (isLoading || slides.length === 0) return;
-
-    const currentSlide = slides[currentIndex];
-
-    // Reset timer for the new slide
-    setSlideStartTime(Date.now());
-    setCurrentTime(Date.now());
-
-    // Clear any existing timeout
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-    const advanceSlide = () => {
-      setCurrentIndex((prev) => (prev + 1) % slides.length);
-    };
-
-    if (currentSlide.type === 'image') {
-      const duration = (currentSlide.duration || 10) * 1000;
-      timeoutRef.current = setTimeout(advanceSlide, duration);
-    } else if (currentSlide.type === 'video') {
-      // Video handled by onEnded
-    }
-
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, [currentIndex, slides, isLoading]);
-
-  const handleVideoEnded = () => {
-    setCurrentIndex((prev) => (prev + 1) % slides.length);
-  };
 
   const handleNextSlide = () => {
     setCurrentIndex((prev) => (prev + 1) % slides.length);
@@ -154,7 +197,6 @@ export default function TVPlayer() {
   const handleDebugTrigger = () => {
     setDebugClicks((prev) => prev + 1);
 
-    // Reset clicks if not reached 3 within a short time
     if (debugClickTimeoutRef.current) clearTimeout(debugClickTimeoutRef.current);
 
     if (debugClicks + 1 >= 3) {
@@ -175,13 +217,19 @@ export default function TVPlayer() {
     );
   }
 
-  if (slides.length === 0) return <div className="bg-primary text-white h-screen flex items-center justify-center text-2xl">No content scheduled</div>;
+  if (slides.length === 0)
+    return (
+      <div className="bg-primary text-white h-screen flex items-center justify-center text-2xl">
+        No content scheduled
+      </div>
+    );
 
   const currentSlide = slides[currentIndex];
-
-  // Debug Info Calculation
-  const elapsedSeconds = ((currentTime - slideStartTime) / 1000).toFixed(1);
-  const totalDuration = currentSlide.duration || (currentSlide.type === 'video' ? 'Video' : 10);
+  const activeWindow = playlistSchedule.windows[currentIndex];
+  const totalPlaylistDuration = playlistSchedule.totalDuration;
+  const currentCycleTime = totalPlaylistDuration ? (currentTime / 1000) % totalPlaylistDuration : 0;
+  const elapsedInSlide = activeWindow ? Math.max(0, currentCycleTime - activeWindow.start) : 0;
+  const slideDuration = activeWindow ? activeWindow.duration : (currentSlide?.duration || 10);
 
   return (
     <div className="bg-black h-screen w-screen overflow-hidden flex items-center justify-center relative">
@@ -204,13 +252,26 @@ export default function TVPlayer() {
         <div className="absolute top-4 right-4 bg-black/80 text-green-400 p-4 rounded-md font-mono text-sm z-50 border border-green-800 shadow-lg pointer-events-none">
           <div className="flex flex-col gap-2">
             <div>
+              <span className="text-gray-400">TV:</span> {tvId}
+            </div>
+            <div>
+              <span className="text-gray-400">Sync Mode:</span> Time-Based NTP (Serverless)
+            </div>
+            <div>
               <span className="text-gray-400">Version:</span> {currentVersion}
             </div>
             <div>
-              <span className="text-gray-400">Next Check:</span> {Math.max(0, Math.ceil((nextCheckTime - currentTime) / 1000))}s
+              <span className="text-gray-400">Next Check:</span>{' '}
+              {Math.max(0, Math.ceil((nextCheckTime - currentTime) / 1000))}s
             </div>
             <div>
-              <span className="text-gray-400">Slide Time:</span> {elapsedSeconds}s / {totalDuration}s
+              <span className="text-gray-400">Cycle Time:</span> {currentCycleTime.toFixed(1)}s / {totalPlaylistDuration}s
+            </div>
+            <div>
+              <span className="text-gray-400">Slide Window:</span> [{activeWindow?.start}s - {activeWindow?.end}s]
+            </div>
+            <div>
+              <span className="text-gray-400">Slide Time:</span> {elapsedInSlide.toFixed(1)}s / {slideDuration}s
             </div>
             <div>
               <span className="text-gray-400">Type:</span> {currentSlide.type}
@@ -247,7 +308,6 @@ export default function TVPlayer() {
               autoPlay
               muted
               playsInline
-              onEnded={handleVideoEnded}
             />
           </motion.div>
         )}
