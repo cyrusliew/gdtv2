@@ -72,7 +72,7 @@ export default function TVPlayer() {
 
   const isLoading = hasImagesToPreload && isPreloading;
 
-  // Preload images and manage loading state
+  // Preload images and manage loading state with GPU pre-decoding
   useEffect(() => {
     if (!hasImagesToPreload) return;
 
@@ -85,8 +85,15 @@ export default function TVPlayer() {
           return new Promise((resolve) => {
             const img = new Image();
             img.src = slide.src;
-            img.onload = resolve;
-            img.onerror = resolve;
+            if ('decode' in img && typeof img.decode === 'function') {
+              img.decode().then(resolve).catch(() => {
+                img.onload = resolve;
+                img.onerror = resolve;
+              });
+            } else {
+              img.onload = resolve;
+              img.onerror = resolve;
+            }
           });
         });
 
@@ -120,7 +127,7 @@ export default function TVPlayer() {
     return { totalDuration: cumulative, windows };
   }, [slides]);
 
-  // ── Deterministic Time-Based Schedule Sync ──────────────────────────────
+  // ── High-Precision Deterministic Time-Based Schedule Sync ─────────────────
   useEffect(() => {
     if (isLoading || playlistSchedule.totalDuration === 0) return;
 
@@ -138,21 +145,14 @@ export default function TVPlayer() {
       );
 
       const activeIndex = windowIndex !== -1 ? windowIndex : 0;
-      setCurrentIndex(activeIndex);
-
-      // Calculate remaining milliseconds until the end of the active slide window
-      const activeWindow = playlistSchedule.windows[activeIndex];
-      const remainingSec = activeWindow ? activeWindow.end - currentCycleTime : 10;
-      const msUntilNextSlide = Math.max(50, Math.ceil(remainingSec * 1000));
-
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(syncToSchedule, msUntilNextSlide);
+      setCurrentIndex((prevIndex) => (prevIndex !== activeIndex ? activeIndex : prevIndex));
     };
 
     syncToSchedule();
+    const intervalId = setInterval(syncToSchedule, 50);
 
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      clearInterval(intervalId);
     };
   }, [isLoading, playlistSchedule]);
 
@@ -255,7 +255,7 @@ export default function TVPlayer() {
               <span className="text-gray-400">TV:</span> {tvId}
             </div>
             <div>
-              <span className="text-gray-400">Sync Mode:</span> Time-Based NTP (Serverless)
+              <span className="text-gray-400">Sync Mode:</span> Time-Based NTP (High-Precision 50ms)
             </div>
             <div>
               <span className="text-gray-400">Version:</span> {currentVersion}
@@ -280,26 +280,26 @@ export default function TVPlayer() {
         </div>
       )}
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="sync">
         {currentSlide.type === 'image' ? (
           <motion.img
             key={currentSlide.id + '-img'}
             src={currentSlide.src}
             alt="slide"
-            className="w-full h-full object-contain"
+            className="absolute inset-0 w-full h-full object-contain"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.3 }}
           />
         ) : (
           <motion.div
             key={currentSlide.id + '-vid'}
-            className="w-full h-full"
+            className="absolute inset-0 w-full h-full"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.3 }}
           >
             <video
               ref={videoRef}
