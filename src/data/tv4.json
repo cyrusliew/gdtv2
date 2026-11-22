@@ -26,7 +26,8 @@
     {
       "id": "felix-love",
       "src": "https://media.hanrusplus.com/New_Felix_Horizontal_ENG_16X9_30s.mp4",
-      "duration": 31
+      "duration": 31,
+      "unpublish": true
     }
   ]
 }
