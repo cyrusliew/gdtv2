@@ -92,13 +92,19 @@ export class R2MediaStore implements MediaStore {
   }
 
   private async getAuthHeaders(): Promise<Record<string, string>> {
+    // In local dev, TinaCMS's LocalAuthProvider returns { access_token: "LOCAL" }
+    // instead of a real TinaCloud JWT — use NEXT_PUBLIC_MEDIA_API_TOKEN when set.
+    if (this.tinaClient?.isLocalMode && FALLBACK_ADMIN_TOKEN) {
+      return { Authorization: `Bearer ${FALLBACK_ADMIN_TOKEN}` };
+    }
+
     try {
       const tokenObj = await this.tinaClient?.authProvider?.getToken?.();
       const idToken =
         typeof tokenObj === 'string'
           ? tokenObj
           : tokenObj?.id_token || tokenObj?.access_token;
-      if (idToken) {
+      if (idToken && idToken !== 'LOCAL') {
         return { Authorization: `Bearer ${idToken}` };
       }
     } catch {
