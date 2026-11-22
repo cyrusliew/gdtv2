@@ -14,7 +14,8 @@
     {
       "id": "felix-beats",
       "src": "https://media.hanrusplus.com/Felix.mp4",
-      "duration": 15
+      "duration": 15,
+      "unpublish": true
     },
     {
       "id": "charged-fusion",
