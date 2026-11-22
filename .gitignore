@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 
 .env
+
+# Build-generated transcoded video variants & posters
+public/assets/.generated/
+public/assets

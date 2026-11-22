@@ -1,27 +1,32 @@
 {
   "slides": [
     {
-      "id": "best-seller",
-      "type": "image",
-      "src": "/assets/BEST SELLERS 2026_TV.jpg",
-      "duration": 15,
-      "note": "Best sellers",
-      "unpuslish": false
+      "id": "recommendation",
+      "src": "https://media.hanrusplus.com/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File-.mp4",
+      "duration": 228
     },
     {
       "id": "coffee",
-      "type": "image",
-      "src": "/assets/COFFEE POSTER 2026_TV_General.jpg",
+      "src": "https://media.hanrusplus.com/COFFEE-POSTER-2026_TV_General.jpg",
       "duration": 15,
-      "unpuslish": false
+      "unpublish": false
+    },
+    {
+      "id": "felix-beats",
+      "src": "https://media.hanrusplus.com/Felix.mp4",
+      "duration": 15
     },
     {
       "id": "charged-fusion",
-      "type": "image",
-      "src": "/assets/redbull-x-gongcha-launch-digital__tv_h-2.jpg",
+      "src": "https://media.hanrusplus.com/redbull-x-gongcha-launch-digital__tv_h-2.jpg",
       "duration": 15,
       "note": "Charged Fusion",
-      "unpuslish": false
+      "unpublish": false
+    },
+    {
+      "id": "felix-love",
+      "src": "https://media.hanrusplus.com/New_Felix_Horizontal_ENG_16X9_30s.mp4",
+      "duration": 31
     }
   ]
 }

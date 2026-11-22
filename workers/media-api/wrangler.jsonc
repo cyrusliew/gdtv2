@@ -1,0 +1,42 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "gdtv2-media-api",
+	"main": "src/index.ts",
+	"workers_dev": true,
+	// Optional custom domain (only if hanrusplus.com is an active zone in this Cloudflare account):
+	// "routes": [{ "pattern": "media-api.hanrusplus.com", "custom_domain": true }],
+	"compatibility_date": "2026-11-22",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true,
+		"logs": {
+			"enabled": true,
+			"head_sampling_rate": 1
+		},
+		"traces": {
+			"enabled": true,
+			"head_sampling_rate": 0.01
+		}
+	},
+	"r2_buckets": [
+		{
+			"binding": "MEDIA_BUCKET",
+			"bucket_name": "gdtv2-media"
+		}
+	],
+	"vars": {
+		// Replace with your R2 custom domain (e.g. "https://media.yourdomain.com")
+		"PUBLIC_MEDIA_URL": "https://media.hanrusplus.com",
+		// Comma-separated list of origins allowed to call this Worker from the browser
+		"ALLOWED_ORIGINS": "https://cyrusliew.github.io,http://localhost:5173,http://localhost:4001",
+		// Your TinaCloud Client ID (matches GitHub repo var TINA_CLIENT_ID)
+		"TINA_CLIENT_ID": "5a9e0507-fe8a-4156-ba1c-e1f57040c555",
+		// TinaCloud branch used to validate logged-in TinaCMS editor tokens
+		"TINA_BRANCH": "main"
+	}
+	// Configure secrets via CLI (never commit secrets here):
+	//   npx wrangler secret put CI_UPLOAD_TOKEN --name gdtv2-media-api
+	//   npx wrangler secret put ADMIN_UPLOAD_TOKEN --name gdtv2-media-api  (optional fallback)
+}

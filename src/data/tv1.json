@@ -2,17 +2,22 @@
   "slides": [
     {
       "id": "Eggette Waffles",
-      "src": "/assets/eggette-waffles-trio.png",
+      "src": "https://media.hanrusplus.com/eggette-waffles-trio.png",
       "duration": 15
     },
     {
       "id": "Redbull-winter",
-      "src": "/assets/GC x REDBULL WINTER EDITION FORMATS_TV H.jpg",
+      "src": "https://media.hanrusplus.com/GC-x-REDBULL-WINTER-EDITION-FORMATS_TV-H.jpg",
       "unpublish": true
     },
     {
       "id": "Cocotaro",
-      "src": "/assets/[Updated] COCO TARO DIGITALS_TV_H.png",
+      "src": "https://media.hanrusplus.com/Updated-COCO-TARO-DIGITALS_TV_H.png",
+      "duration": 15
+    },
+    {
+      "id": "Felix-2",
+      "src": "https://media.hanrusplus.com/FELIX-HAPPY-SERIES-2.0_TV_H.jpg",
       "duration": 15
     },
     {

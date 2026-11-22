@@ -4,12 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tinacms dev -c \"vite\"",
-    "build": "npm run resize-images && tinacms build && vite build",
+    "dev": "node scripts/process-media.js --manifest-only && tinacms dev -c \"vite\"",
+    "build": "npm run process-media && tinacms build && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "cms": "tinacms dev",
-    "resize-images": "node scripts/resize-images.js"
+    "process-media": "node scripts/process-media.js",
+    "resize-images": "node scripts/process-media.js",
+    "migrate-to-r2": "node scripts/migrate-to-r2.js"
   },
   "dependencies": {
     "framer-motion": "^12.23.26",
