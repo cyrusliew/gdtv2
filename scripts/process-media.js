@@ -39,11 +39,19 @@ const MEDIA_API_URL = (
   process.env.VITE_MEDIA_API_URL ||
   DEFAULT_MEDIA_API_URL
 ).replace(/\/+$/, '');
-const CI_UPLOAD_TOKEN = (process.env.CI_UPLOAD_TOKEN || process.env.R2_CI_UPLOAD_TOKEN || '').trim();
+const CI_UPLOAD_TOKEN = (
+  process.env.CI_UPLOAD_TOKEN ||
+  process.env.R2_CI_UPLOAD_TOKEN ||
+  process.env.ADMIN_UPLOAD_TOKEN ||
+  process.env.NEXT_PUBLIC_MEDIA_API_TOKEN ||
+  ''
+).trim();
 
 const MAX_WIDTH = 1920;
 const MAX_HEIGHT = 1080;
-const TRANSCODE_PROFILE_VERSION = 'c79-h264-1080p-crf23-g30-an-v1';
+const MAX_FPS = 30;
+const MAX_BITRATE_BPS = 12_000_000;
+const TRANSCODE_PROFILE_VERSION = 'c79-h264-1080p30-vp9-v2';
 
 // ── Toolchain Detection ─────────────────────────────────────────────────────
 
@@ -288,6 +296,20 @@ function inspectWebmPureJs(filePath) {
   return result;
 }
 
+function parseFrameRate(rateStr) {
+  if (!rateStr || typeof rateStr !== 'string') return null;
+  const parts = rateStr.split('/');
+  if (parts.length === 2) {
+    const num = Number(parts[0]);
+    const den = Number(parts[1]);
+    if (Number.isFinite(num) && Number.isFinite(den) && den > 0) {
+      return Number((num / den).toFixed(3));
+    }
+  }
+  const val = Number(rateStr);
+  return Number.isFinite(val) && val > 0 ? val : null;
+}
+
 function probeVideoWithFfprobe(filePath) {
   const stdout = execFileSync(
     'ffprobe',
@@ -298,6 +320,7 @@ function probeVideoWithFfprobe(filePath) {
   const videoStream = (parsed.streams || []).find((s) => s.codec_type === 'video');
   const audioStream = (parsed.streams || []).find((s) => s.codec_type === 'audio');
   const durationRaw = Number(videoStream?.duration || parsed.format?.duration);
+  const bitRateRaw = Number(videoStream?.bit_rate || parsed.format?.bit_rate);
 
   return {
     duration: Number.isFinite(durationRaw) && durationRaw > 0 ? Number(durationRaw.toFixed(3)) : null,
@@ -305,9 +328,103 @@ function probeVideoWithFfprobe(filePath) {
     height: videoStream?.height || null,
     codec: videoStream?.codec_name || null,
     pixFmt: videoStream?.pix_fmt || null,
+    level: Number.isFinite(Number(videoStream?.level)) ? Number(videoStream.level) : null,
+    fps: parseFrameRate(videoStream?.avg_frame_rate) || parseFrameRate(videoStream?.r_frame_rate),
+    bitRate: Number.isFinite(bitRateRaw) && bitRateRaw > 0 ? bitRateRaw : null,
     hasAudio: Boolean(audioStream),
     formatName: parsed.format?.format_name || null,
   };
+}
+
+function transcodeToH264Mp4(inputPath, outputPath) {
+  execFileSync(
+    'ffmpeg',
+    [
+      '-y',
+      '-i',
+      inputPath,
+      '-c:v',
+      'libx264',
+      '-profile:v',
+      'high',
+      '-level:v',
+      '4.1',
+      '-pix_fmt',
+      'yuv420p',
+      '-vf',
+      `scale='min(${MAX_WIDTH},iw)':'min(${MAX_HEIGHT},ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=${MAX_FPS}`,
+      '-crf',
+      '23',
+      '-maxrate',
+      '8M',
+      '-bufsize',
+      '16M',
+      '-preset',
+      'medium',
+      '-g',
+      String(MAX_FPS),
+      '-keyint_min',
+      String(MAX_FPS),
+      '-sc_threshold',
+      '0',
+      '-movflags',
+      '+faststart',
+      '-an',
+      outputPath,
+    ],
+    { stdio: 'pipe' }
+  );
+}
+
+function transcodeToVp9Webm(inputPath, outputPath) {
+  execFileSync(
+    'ffmpeg',
+    [
+      '-y',
+      '-i',
+      inputPath,
+      '-c:v',
+      'libvpx-vp9',
+      '-pix_fmt',
+      'yuv420p',
+      '-vf',
+      `scale='min(${MAX_WIDTH},iw)':'min(${MAX_HEIGHT},ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=${MAX_FPS}`,
+      '-crf',
+      '33',
+      '-b:v',
+      '0',
+      '-deadline',
+      'realtime',
+      '-cpu-used',
+      '6',
+      '-row-mt',
+      '1',
+      '-g',
+      String(MAX_FPS),
+      '-an',
+      outputPath,
+    ],
+    { stdio: 'pipe' }
+  );
+}
+
+function extractPosterJpeg(inputPath, outputPath) {
+  execFileSync(
+    'ffmpeg',
+    [
+      '-y',
+      '-i',
+      inputPath,
+      '-vframes',
+      '1',
+      '-q:v',
+      '3',
+      '-vf',
+      `scale='min(${MAX_WIDTH},iw)':'min(${MAX_HEIGHT},ih)':force_original_aspect_ratio=decrease`,
+      outputPath,
+    ],
+    { stdio: 'pipe' }
+  );
 }
 
 function hashFile(filePath) {
@@ -403,6 +520,7 @@ function processVideo(filePath, file, detected) {
   }
 
   let optimizedSrc = assetPublicPath;
+  let webmSrc = detected.format === 'webm' ? assetPublicPath : null;
   let posterSrc = null;
   let finalWidth = probe.width;
   let finalHeight = probe.height;
@@ -421,15 +539,20 @@ function processVideo(filePath, file, detected) {
     const isH264Mp4 =
       detected.format === 'mp4' &&
       (probe.codec === 'h264' || probe.codec === 'avc1' || probe.codec === 'avc3') &&
-      (!probe.pixFmt || probe.pixFmt === 'yuv420p');
+      (!probe.pixFmt || probe.pixFmt === 'yuv420p') &&
+      (!probe.level || probe.level <= 41);
 
     const exceedsResolution =
       (probe.width && probe.width > MAX_WIDTH) || (probe.height && probe.height > MAX_HEIGHT);
+    const exceedsFps = Boolean(probe.fps && probe.fps > MAX_FPS + 1);
+    const exceedsBitRate = Boolean(probe.bitRate && probe.bitRate > MAX_BITRATE_BPS);
 
     const needsTranscode =
       detected.needsTranscode ||
       !isH264Mp4 ||
       exceedsResolution ||
+      exceedsFps ||
+      exceedsBitRate ||
       probe.hasAudio ||
       !probe.faststart;
 
@@ -440,45 +563,13 @@ function processVideo(filePath, file, detected) {
       const outPath = path.join(GENERATED_DIR, outName);
 
       if (!fs.existsSync(outPath)) {
-        console.log(`🎬 Transcoding ${file} for LG Chromium 79 (H.264 1080p faststart muted)...`);
-        execFileSync(
-          'ffmpeg',
-          [
-            '-y',
-            '-i',
-            filePath,
-            '-c:v',
-            'libx264',
-            '-profile:v',
-            'high',
-            '-level:v',
-            '4.1',
-            '-pix_fmt',
-            'yuv420p',
-            '-vf',
-            `scale='min(${MAX_WIDTH},iw)':'min(${MAX_HEIGHT},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2`,
-            '-crf',
-            '23',
-            '-preset',
-            'medium',
-            '-g',
-            '30',
-            '-keyint_min',
-            '30',
-            '-sc_threshold',
-            '0',
-            '-movflags',
-            '+faststart',
-            '-an',
-            outPath,
-          ],
-          { stdio: 'pipe' }
-        );
+        console.log(`🎬 Transcoding ${file} for LG Chromium 79 (H.264 1080p30 Level 4.1 faststart muted)...`);
+        transcodeToH264Mp4(filePath, outPath);
         const origMb = (stat.size / (1024 * 1024)).toFixed(2);
         const newMb = (fs.statSync(outPath).size / (1024 * 1024)).toFixed(2);
         console.log(`✅ Transcoded ${file}: ${origMb}MB → ${newMb}MB`);
       } else {
-        console.log(`⚡ Using cached Chromium 79 transcode for ${file}`);
+        console.log(`⚡ Using cached Chromium 79 H.264 transcode for ${file}`);
       }
 
       optimizedSrc = `/assets/.generated/${outName}`;
@@ -494,27 +585,27 @@ function processVideo(filePath, file, detected) {
       }
     }
 
+    // Generate VP9 WebM fallback so open-source Chromium 79 (without H.264) also plays without MediaError code 4
+    const webmName = `${safeBase}-${fileHash}.webm`;
+    const webmPath = path.join(GENERATED_DIR, webmName);
+    if (!fs.existsSync(webmPath)) {
+      try {
+        console.log(`🎬 Generating VP9 WebM fallback for ${file}...`);
+        transcodeToVp9Webm(videoSourceForPoster, webmPath);
+      } catch (err) {
+        console.warn(`⚠️ Failed to generate VP9 WebM fallback for ${file}:`, err.message);
+      }
+    }
+    if (fs.existsSync(webmPath)) {
+      webmSrc = `/assets/.generated/${webmName}`;
+    }
+
     // Extract frame-0 poster JPEG so TVPlayer never flashes black while decoder initializes
     const posterName = `${safeBase}-${fileHash}.poster.jpg`;
     const posterPath = path.join(GENERATED_DIR, posterName);
     if (!fs.existsSync(posterPath)) {
       try {
-        execFileSync(
-          'ffmpeg',
-          [
-            '-y',
-            '-i',
-            videoSourceForPoster,
-            '-vframes',
-            '1',
-            '-q:v',
-            '3',
-            '-vf',
-            `scale='min(${MAX_WIDTH},iw)':'min(${MAX_HEIGHT},ih)':force_original_aspect_ratio=decrease`,
-            posterPath,
-          ],
-          { stdio: 'pipe' }
-        );
+        extractPosterJpeg(videoSourceForPoster, posterPath);
       } catch (err) {
         console.warn(`⚠️ Failed to extract poster for ${file}:`, err.message);
       }
@@ -539,6 +630,7 @@ function processVideo(filePath, file, detected) {
     width: finalWidth,
     height: finalHeight,
     src: optimizedSrc,
+    webmSrc,
     poster: posterSrc,
     size: stat.size,
   };
@@ -775,6 +867,7 @@ async function syncR2MediaManifest(manifest) {
         width: entry.width ?? null,
         height: entry.height ?? null,
         src: entry.src || publicUrl,
+        webmSrc: entry.webmSrc || null,
         poster: entry.poster || null,
         size: entry.size,
       };
@@ -782,7 +875,10 @@ async function syncR2MediaManifest(manifest) {
       const isVideo = entry.type === 'video';
       const isReferenced = referencedUrls.size === 0 || referencedUrls.has(normalizedUrl);
       const alreadyOptimizedInR2 =
-        entry.sourceHash === expectedSourceHash && Boolean(entry.poster) && entry.src !== publicUrl;
+        entry.sourceHash === expectedSourceHash &&
+        Boolean(entry.poster) &&
+        Boolean(entry.webmSrc) &&
+        entry.src !== publicUrl;
 
       if (isVideo && isReferenced && !MANIFEST_ONLY && HAS_FFMPEG && CI_UPLOAD_TOKEN && !alreadyOptimizedInR2) {
         console.log(`🎬 Downloading & optimizing R2 video for Chromium 79: ${entry.key}...`);
@@ -798,63 +894,18 @@ async function syncR2MediaManifest(manifest) {
 
           const srcTmp = path.join(tmpDir, `${safeBase}-src${ext}`);
           const outTmp = path.join(tmpDir, `${safeBase}-${expectedSourceHash}.mp4`);
+          const webmTmp = path.join(tmpDir, `${safeBase}-${expectedSourceHash}.webm`);
           const posterTmp = path.join(tmpDir, `${safeBase}-${expectedSourceHash}.poster.jpg`);
 
           fs.writeFileSync(srcTmp, Buffer.from(await dlRes.arrayBuffer()));
 
-          execFileSync(
-            'ffmpeg',
-            [
-              '-y',
-              '-i',
-              srcTmp,
-              '-c:v',
-              'libx264',
-              '-profile:v',
-              'high',
-              '-level:v',
-              '4.1',
-              '-pix_fmt',
-              'yuv420p',
-              '-vf',
-              `scale='min(${MAX_WIDTH},iw)':'min(${MAX_HEIGHT},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2`,
-              '-crf',
-              '23',
-              '-preset',
-              'medium',
-              '-g',
-              '30',
-              '-keyint_min',
-              '30',
-              '-sc_threshold',
-              '0',
-              '-movflags',
-              '+faststart',
-              '-an',
-              outTmp,
-            ],
-            { stdio: 'pipe' }
-          );
-
-          execFileSync(
-            'ffmpeg',
-            [
-              '-y',
-              '-i',
-              outTmp,
-              '-vframes',
-              '1',
-              '-q:v',
-              '3',
-              '-vf',
-              `scale='min(${MAX_WIDTH},iw)':'min(${MAX_HEIGHT},ih)':force_original_aspect_ratio=decrease`,
-              posterTmp,
-            ],
-            { stdio: 'pipe' }
-          );
+          transcodeToH264Mp4(srcTmp, outTmp);
+          transcodeToVp9Webm(outTmp, webmTmp);
+          extractPosterJpeg(outTmp, posterTmp);
 
           const outProbe = HAS_FFPROBE ? probeVideoWithFfprobe(outTmp) : inspectMp4PureJs(outTmp);
           const optimizedKey = `.generated/${safeBase}-${expectedSourceHash}.mp4`;
+          const webmKey = `.generated/${safeBase}-${expectedSourceHash}.webm`;
           const posterKey = `.generated/${safeBase}-${expectedSourceHash}.poster.jpg`;
 
           const uploadedVideo = await uploadBufferToR2(optimizedKey, outTmp, 'video/mp4', {
@@ -866,6 +917,12 @@ async function syncR2MediaManifest(manifest) {
             ...(outProbe.height ? { 'X-Media-Height': String(outProbe.height) } : {}),
           });
 
+          const uploadedWebm = await uploadBufferToR2(webmKey, webmTmp, 'video/webm', {
+            'X-Media-Type': 'video',
+            'X-Original-Key': entry.key,
+            'X-Source-Hash': expectedSourceHash,
+          });
+
           const uploadedPoster = await uploadBufferToR2(posterKey, posterTmp, 'image/jpeg', {
             'X-Media-Type': 'image',
             'X-Original-Key': entry.key,
@@ -873,7 +930,7 @@ async function syncR2MediaManifest(manifest) {
           });
 
           console.log(
-            `✅ Uploaded Chromium 79 transcode & poster to R2 for ${entry.key} (${
+            `✅ Uploaded Chromium 79 H.264 + VP9 WebM + poster to R2 for ${entry.key} (${
               outProbe.duration ? `${outProbe.duration}s` : 'unknown duration'
             })`
           );
@@ -885,11 +942,19 @@ async function syncR2MediaManifest(manifest) {
             width: outProbe.width ?? finalEntry.width,
             height: outProbe.height ?? finalEntry.height,
             src: uploadedVideo.src,
+            webmSrc: uploadedWebm.src,
             poster: uploadedPoster.src,
           };
         }
       } else if (isVideo && alreadyOptimizedInR2) {
         console.log(`⚡ Using cached R2 Chromium 79 transcode for ${entry.key}`);
+      } else if (isVideo && isReferenced && !MANIFEST_ONLY && !alreadyOptimizedInR2) {
+        const missing = [];
+        if (!HAS_FFMPEG) missing.push('ffmpeg');
+        if (!CI_UPLOAD_TOKEN) missing.push('CI_UPLOAD_TOKEN / NEXT_PUBLIC_MEDIA_API_TOKEN');
+        console.warn(
+          `⚠️  Skipped Chromium 79 transcode for ${entry.key} (missing: ${missing.join(', ')})`
+        );
       }
 
       manifest[normalizedUrl] = finalEntry;

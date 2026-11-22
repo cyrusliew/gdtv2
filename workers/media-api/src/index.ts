@@ -314,7 +314,15 @@ async function handleManifest(
 
   const generatedByOriginal = new Map<
     string,
-    { optimizedUrl?: string; posterUrl?: string; duration?: number; width?: number; height?: number; sourceHash?: string }
+    {
+      optimizedUrl?: string;
+      webmUrl?: string;
+      posterUrl?: string;
+      duration?: number;
+      width?: number;
+      height?: number;
+      sourceHash?: string;
+    }
   >();
 
   for (const obj of objects) {
@@ -328,6 +336,8 @@ async function handleManifest(
 
     if (obj.key.endsWith('.poster.jpg')) {
       entry.posterUrl = publicUrl;
+    } else if (obj.key.endsWith('.webm')) {
+      entry.webmUrl = publicUrl;
     } else if (obj.key.endsWith('.mp4')) {
       entry.optimizedUrl = publicUrl;
       if (meta.duration) entry.duration = Number(meta.duration);
@@ -358,6 +368,7 @@ async function handleManifest(
       width: gen?.width ?? (meta.width ? Number(meta.width) : null),
       height: gen?.height ?? (meta.height ? Number(meta.height) : null),
       src: gen?.optimizedUrl || publicUrl,
+      webmSrc: gen?.webmUrl || null,
       poster: gen?.posterUrl || null,
       sourceHash: gen?.sourceHash || null,
       size: obj.size,

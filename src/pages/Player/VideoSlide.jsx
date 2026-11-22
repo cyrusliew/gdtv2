@@ -10,9 +10,44 @@ const DRIFT_IGNORE_THRESHOLD_SEC = 0.15;
 const DRIFT_HARD_SEEK_THRESHOLD_SEC = 0.6;
 const LOOP_BOUNDARY_MARGIN_SEC = 0.35;
 
+let cachedH264Support = null;
+
+function browserSupportsH264() {
+  if (cachedH264Support !== null) return cachedH264Support;
+  if (typeof document === 'undefined') return true;
+  try {
+    const v = document.createElement('video');
+    cachedH264Support = Boolean(
+      v.canPlayType &&
+        (v.canPlayType('video/mp4; codecs="avc1.42E01E"') !== '' ||
+          v.canPlayType('video/mp4; codecs="avc1.640028"') !== '')
+    );
+  } catch {
+    cachedH264Support = true;
+  }
+  return cachedH264Support;
+}
+
+function isMp4Url(url) {
+  return typeof url === 'string' && /\.m(p4|4v)([?#]|$)/i.test(url);
+}
+
+function pickInitialVideoSrc(slide) {
+  if (!slide) return '';
+  const primary = slide.src || '';
+  const webm = slide.webmSrc || '';
+  if (webm && primary && isMp4Url(primary) && !browserSupportsH264()) {
+    return webm;
+  }
+  return primary || webm;
+}
+
 /**
  * Deterministic clock-synced HTML5 video slide built for LG Signage TV (Chromium 79).
  *
+ * - Prefers hardware-decoded H.264 MP4 when supported, automatically falling back
+ *   to VP9 WebM (if available) on browsers without proprietary H.264 codecs or on
+ *   runtime MediaError code 4.
  * - Seeks immediately to wall-clock-derived targetTime on mid-window joins/reloads.
  * - Keeps multi-screen displays aligned via 500ms drift checks (gentle playbackRate
  *   nudging for small drift, hard seek only when drift exceeds 0.6s).
@@ -28,7 +63,18 @@ export default function VideoSlide({
 }) {
   const videoRef = useRef(null);
   const onTelemetryRef = useRef(onTelemetry);
-  const [hasError, setHasError] = useState(false);
+  const [fallbackState, setFallbackState] = useState({
+    slideKey: `${slide.src || ''}|${slide.webmSrc || ''}`,
+    useWebmFallback: false,
+    hasError: false,
+  });
+
+  const currentSlideKey = `${slide.src || ''}|${slide.webmSrc || ''}`;
+  const isCurrentState = fallbackState.slideKey === currentSlideKey;
+  const useWebmFallback = isCurrentState && fallbackState.useWebmFallback;
+  const hasError = isCurrentState && fallbackState.hasError;
+
+  const activeSrc = useWebmFallback && slide.webmSrc ? slide.webmSrc : pickInitialVideoSrc(slide);
 
   useEffect(() => {
     onTelemetryRef.current = onTelemetry;
@@ -39,13 +85,13 @@ export default function VideoSlide({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !activeWindow || !totalPlaylistDuration) return undefined;
+    if (!video || !activeWindow || !totalPlaylistDuration || !activeSrc) return undefined;
 
     let isMounted = true;
 
-    // Ensure src is set (handles React StrictMode double-mount after teardown cleanup)
-    if (slide.src && video.getAttribute('src') !== slide.src) {
-      video.setAttribute('src', slide.src);
+    // Ensure src is set (handles React StrictMode double-mount and fallback switches)
+    if (video.getAttribute('src') !== activeSrc) {
+      video.setAttribute('src', activeSrc);
       video.load();
     }
 
@@ -152,8 +198,24 @@ export default function VideoSlide({
       if (!isMounted) return;
       const code = video.error ? video.error.code : 'unknown';
       const msg = video.error?.message || `MediaError code ${code}`;
-      console.error(`Video playback error (${slide.src}):`, msg);
-      setHasError(true);
+
+      // If primary MP4 failed to decode and a VP9 WebM fallback is available, switch to it
+      if (slide.webmSrc && activeSrc !== slide.webmSrc) {
+        console.warn(`Video playback error (${activeSrc}): ${msg} — falling back to WebM`);
+        setFallbackState({
+          slideKey: currentSlideKey,
+          useWebmFallback: true,
+          hasError: false,
+        });
+        return;
+      }
+
+      console.error(`Video playback error (${activeSrc}):`, msg);
+      setFallbackState({
+        slideKey: currentSlideKey,
+        useWebmFallback,
+        hasError: true,
+      });
       reportTelemetry(0, 0, msg);
     };
 
@@ -239,7 +301,17 @@ export default function VideoSlide({
         // Ignore teardown errors
       }
     };
-  }, [slide.src, activeWindow, totalPlaylistDuration, behavior, manifestDuration, manualOffsetSec]);
+  }, [
+    activeSrc,
+    slide.webmSrc,
+    currentSlideKey,
+    useWebmFallback,
+    activeWindow,
+    totalPlaylistDuration,
+    behavior,
+    manifestDuration,
+    manualOffsetSec,
+  ]);
 
   if (hasError) {
     if (slide.poster) {
@@ -257,7 +329,7 @@ export default function VideoSlide({
   return (
     <video
       ref={videoRef}
-      src={slide.src}
+      src={activeSrc}
       poster={slide.poster || undefined}
       className="w-full h-full object-contain"
       autoPlay

@@ -5,7 +5,7 @@
     "mimeType": "image/jpeg",
     "width": 1920,
     "height": 1080,
-    "size": 1696294
+    "size": 144397
   },
   "https://media.hanrusplus.com/130326-GC-EUREKA-Digital_TV_H.jpg": {
     "type": "image",
@@ -15,6 +15,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/130326-GC-EUREKA-Digital_TV_H.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 220389
   },
@@ -26,6 +27,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/200426-GC-EUREKA-Digital_TV_H.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 239428
   },
@@ -37,6 +39,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/2026-Menu_TV-FULL_Horizontal-01.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 161943
   },
@@ -48,6 +51,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/2026-Menu_TV-FULL_Horizontal-02.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 187487
   },
@@ -59,6 +63,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/2026-THAI-MANGO_DIGITAL_TV_H.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 175778
   },
@@ -70,6 +75,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/BEST-SELLERS-2026_TV.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 160916
   },
@@ -81,6 +87,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/BISCOFF-KV_No-Cookie_H.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 245472
   },
@@ -92,6 +99,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/BUBBLE-TEA-DAY-2026-Digital_TV_H_LEFT.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 129627
   },
@@ -103,6 +111,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/BUBBLE-TEA-DAY-2026-Digital_TV_H_RIGHT.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 141641
   },
@@ -114,6 +123,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/COFFEE-POSTER-2026_TV_General.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 187939
   },
@@ -125,8 +135,21 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/FELIX-HAPPY-SERIES-2.0_TV_H.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 1696294
+  },
+  "https://media.hanrusplus.com/Felix.mp4": {
+    "type": "video",
+    "format": "mp4",
+    "mimeType": "video/mp4",
+    "duration": 15,
+    "width": 1920,
+    "height": 1080,
+    "src": "https://media.hanrusplus.com/.generated/Felix-bcff1c3733f8.mp4",
+    "webmSrc": "https://media.hanrusplus.com/.generated/Felix-bcff1c3733f8.webm",
+    "poster": "https://media.hanrusplus.com/.generated/Felix-bcff1c3733f8.poster.jpg",
+    "size": 95231099
   },
   "https://media.hanrusplus.com/GC-HAPPY-SERIES-DIGITAL_TV_H.jpg": {
     "type": "image",
@@ -136,6 +159,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/GC-HAPPY-SERIES-DIGITAL_TV_H.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 169985
   },
@@ -143,11 +167,12 @@
     "type": "video",
     "format": "mp4",
     "mimeType": "video/mp4",
-    "duration": null,
-    "width": null,
-    "height": null,
-    "src": "https://media.hanrusplus.com/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File-.mp4",
-    "poster": null,
+    "duration": 227.5,
+    "width": 1920,
+    "height": 1080,
+    "src": "https://media.hanrusplus.com/.generated/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--0be98e22860f.mp4",
+    "webmSrc": "https://media.hanrusplus.com/.generated/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--0be98e22860f.webm",
+    "poster": "https://media.hanrusplus.com/.generated/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--0be98e22860f.poster.jpg",
     "size": 158055778
   },
   "https://media.hanrusplus.com/GC-x-REDBULL-WINTER-EDITION-FORMATS_TV-H.jpg": {
@@ -158,6 +183,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/GC-x-REDBULL-WINTER-EDITION-FORMATS_TV-H.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 185779
   },
@@ -169,6 +195,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/GCSG2026_DIGITAL_TV-H-2.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 294911
   },
@@ -180,6 +207,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/GCSG2026_DIGITAL_TV-H_L.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 346021
   },
@@ -191,6 +219,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/GCSG2026_DIGITAL_TV-H_R.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 230631
   },
@@ -202,6 +231,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/GC_DOM_3RD_ANNIVERSARY_TV_H.png",
+    "webmSrc": null,
     "poster": null,
     "size": 490228
   },
@@ -213,6 +243,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/GC_GreekYogurt_Digitals_01_OL_TV_H.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 266421
   },
@@ -224,6 +255,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/HAPPY-HOUR-2026-Digital_TV_H.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 206303
   },
@@ -235,6 +267,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/HARRY-POTTER_Adaptations_TV_H.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 246018
   },
@@ -246,6 +279,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/HARRY-POTTER_Adaptations_TV_H_Left.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 118246
   },
@@ -257,6 +291,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/HARRY-POTTER_Adaptations_TV_H_Right.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 226327
   },
@@ -268,6 +303,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/IMAGE_01.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 131286
   },
@@ -279,6 +315,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/KV_POP_20th-Anniversary-Formats_TV_H_LEF-updated-T.png",
+    "webmSrc": null,
     "poster": null,
     "size": 684869
   },
@@ -290,8 +327,21 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/KV_POP_20th-Anniversary-Formats_TV_H_RIGHT-updated-.png",
+    "webmSrc": null,
     "poster": null,
     "size": 705680
+  },
+  "https://media.hanrusplus.com/New_Felix_Horizontal_ENG_16X9_30s.mp4": {
+    "type": "video",
+    "format": "mp4",
+    "mimeType": "video/mp4",
+    "duration": 30.033,
+    "width": 1920,
+    "height": 1080,
+    "src": "https://media.hanrusplus.com/.generated/New_Felix_Horizontal_ENG_16X9_30s-f43a1edd8356.mp4",
+    "webmSrc": "https://media.hanrusplus.com/.generated/New_Felix_Horizontal_ENG_16X9_30s-f43a1edd8356.webm",
+    "poster": "https://media.hanrusplus.com/.generated/New_Felix_Horizontal_ENG_16X9_30s-f43a1edd8356.poster.jpg",
+    "size": 188511908
   },
   "https://media.hanrusplus.com/STREET-FIGHTER-2026-FORMATS_TV_H.jpg": {
     "type": "image",
@@ -301,6 +351,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/STREET-FIGHTER-2026-FORMATS_TV_H.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 360962
   },
@@ -312,6 +363,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/Updated-COCO-TARO-DIGITALS_TV_H.png",
+    "webmSrc": null,
     "poster": null,
     "size": 325419
   },
@@ -323,6 +375,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/best-sellers_tv.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 86425
   },
@@ -334,6 +387,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/eggette-waffles-trio.png",
+    "webmSrc": null,
     "poster": null,
     "size": 451363
   },
@@ -345,6 +399,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/eggette-waffles.png",
+    "webmSrc": null,
     "poster": null,
     "size": 710981
   },
@@ -356,6 +411,7 @@
     "width": null,
     "height": null,
     "src": "https://media.hanrusplus.com/redbull-x-gongcha-launch-digital__tv_h-2.jpg",
+    "webmSrc": null,
     "poster": null,
     "size": 200662
   }

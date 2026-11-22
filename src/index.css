@@ -1,3 +1,20 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Chromium 79 does not support CSS :where(), causing it to drop Tailwind
+   preflight's button/input and [hidden] reset rules. Re-apply using standard selectors. */
+@layer base {
+  button,
+  input[type='button'],
+  input[type='reset'],
+  input[type='submit'] {
+    -webkit-appearance: button;
+    background-color: transparent;
+    background-image: none;
+  }
+
+  [hidden] {
+    display: none;
+  }
+}

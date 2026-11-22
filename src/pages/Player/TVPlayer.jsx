@@ -52,6 +52,7 @@ export default function TVPlayer() {
                 type,
                 originalSrc: slide.src,
                 src: manifestEntry?.src || slide.src,
+                webmSrc: manifestEntry?.webmSrc || null,
                 poster: manifestEntry?.poster || null,
                 mimeType: manifestEntry?.mimeType || null,
                 intrinsicDuration: manifestEntry?.duration || null,
@@ -78,6 +79,7 @@ export default function TVPlayer() {
           type,
           originalSrc: mediaSrc,
           src: manifestEntry?.src || mediaSrc,
+          webmSrc: manifestEntry?.webmSrc || null,
           poster: manifestEntry?.poster || null,
           mimeType: manifestEntry?.mimeType || null,
           intrinsicDuration: manifestEntry?.duration || null,
@@ -193,9 +195,11 @@ export default function TVPlayer() {
   }, [isLoading, playlistSchedule, manualOffsetSec]);
 
   // ── 1-Slide Lookahead HTTP Cache Warmup for Upcoming Video Slides ─────────
-  // Warms only the first 2 MB (moov atom + opening GOP) via Range request so
-  // large videos start fast without saturating bandwidth or claiming a 2nd
-  // hardware video decoder on LG Signage TV (Chromium 79).
+  // Warms only the first 2 MB (moov atom + opening GOP) via Range request for
+  // same-origin videos so large videos start fast without saturating bandwidth
+  // or claiming a 2nd hardware video decoder on LG Signage TV (Chromium 79).
+  // For cross-origin media (e.g. Cloudflare R2 without CORS), skip the Range
+  // fetch (which triggers a blocked OPTIONS preflight) and preconnect instead.
   useEffect(() => {
     if (isLoading || slides.length <= 1) return;
 
@@ -203,6 +207,32 @@ export default function TVPlayer() {
     const nextSlide = slides[nextIndex];
     if (!nextSlide || nextSlide.type !== 'video' || !nextSlide.src) return;
     if (warmedVideoUrlsRef.current.has(nextSlide.src)) return;
+
+    let isSameOrigin = false;
+    let targetOrigin = null;
+    try {
+      const parsed = new URL(nextSlide.src, window.location.href);
+      targetOrigin = parsed.origin;
+      isSameOrigin = parsed.origin === window.location.origin;
+    } catch {
+      isSameOrigin = !/^https?:\/\//i.test(nextSlide.src);
+    }
+
+    if (!isSameOrigin) {
+      warmedVideoUrlsRef.current.add(nextSlide.src);
+      if (targetOrigin && typeof document !== 'undefined') {
+        const existing = document.head.querySelector(
+          `link[rel="preconnect"][href="${targetOrigin}"]`
+        );
+        if (!existing) {
+          const link = document.createElement('link');
+          link.rel = 'preconnect';
+          link.href = targetOrigin;
+          document.head.appendChild(link);
+        }
+      }
+      return;
+    }
 
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     warmedVideoUrlsRef.current.add(nextSlide.src);
@@ -325,7 +355,7 @@ export default function TVPlayer() {
       {/* Debug Overlay */}
       {debugMode && (
         <div className="absolute top-4 right-4 bg-black/80 text-green-400 p-4 rounded-md font-mono text-sm z-50 border border-green-800 shadow-lg pointer-events-none max-w-sm">
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col space-y-1.5">
             <div>
               <span className="text-gray-400">TV:</span> {tvId}
             </div>

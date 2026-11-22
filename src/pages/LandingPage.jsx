@@ -21,7 +21,7 @@ export default function LandingPage() {
               to={`/${tv}`}
               className="group bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 hover:border-blue-500 transition-all hover:shadow-blue-500/20 flex items-center justify-between"
             >
-              <div className="flex items-center gap-4">
+              <div className="flex items-center space-x-4">
                 <div className="p-3 bg-gray-700 rounded-lg group-hover:bg-blue-600 transition-colors">
                   <Monitor size={32} weight="duotone" />
                 </div>
@@ -37,7 +37,7 @@ export default function LandingPage() {
         <div className="flex justify-center">
           <a
             href="/admin/"
-            className="flex items-center gap-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-full border border-gray-600 transition-colors text-gray-300 hover:text-white"
+            className="flex items-center space-x-2 px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-full border border-gray-600 transition-colors text-gray-300 hover:text-white"
           >
             <Pencil size={20} />
             <span>Open Content Manager (CMS)</span>
