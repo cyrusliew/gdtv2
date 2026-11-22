@@ -3,7 +3,8 @@
     {
       "id": "recommendation",
       "src": "https://media.hanrusplus.com/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File-.mp4",
-      "duration": 228
+      "duration": 228,
+      "unpublish": true
     },
     {
       "id": "coffee",
