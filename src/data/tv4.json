@@ -3,25 +3,25 @@
     {
       "id": "best-seller",
       "type": "image",
-      "src": "/assets/BEST SELLERS 2026_TV.jpg",
+      "src": "https://media.hanrusplus.com/BEST-SELLERS-2026_TV.jpg",
       "duration": 15,
       "note": "Best sellers",
-      "unpuslish": false
+      "unpublish": false
     },
     {
       "id": "coffee",
       "type": "image",
-      "src": "/assets/COFFEE POSTER 2026_TV_General.jpg",
+      "src": "https://media.hanrusplus.com/COFFEE-POSTER-2026_TV_General.jpg",
       "duration": 15,
-      "unpuslish": false
+      "unpublish": false
     },
     {
       "id": "charged-fusion",
       "type": "image",
-      "src": "/assets/redbull-x-gongcha-launch-digital__tv_h-2.jpg",
+      "src": "https://media.hanrusplus.com/redbull-x-gongcha-launch-digital__tv_h-2.jpg",
       "duration": 15,
       "note": "Charged Fusion",
-      "unpuslish": false
+      "unpublish": false
     }
   ]
 }

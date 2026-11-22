@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'node_modules', 'tina/__generated__', '.tina']),
+  globalIgnores(['dist', 'node_modules', 'tina/__generated__', '.tina', 'public/admin', 'workers']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

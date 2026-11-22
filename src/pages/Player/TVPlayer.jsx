@@ -1,18 +1,19 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { AnimatePresence, motion } from 'framer-motion';
+import mediaManifest from '../../data/media-manifest.json';
+import VideoSlide from './VideoSlide';
+import {
+  detectMediaType,
+  getMediaManifestEntry,
+  resolveSlideDuration,
+  resolveTakeoverDuration,
+} from '../../utils/media';
 
 // Import all JSON files from the data directory
 const tvDataModules = import.meta.glob('../../data/tv*.json', { eager: true });
 const takeoverModules = import.meta.glob('../../data/takeovers/*.json', { eager: true });
-
-// Auto-detect media type from file extension if explicit type is omitted
-function detectMediaType(src, explicitType) {
-  if (explicitType === 'video' || explicitType === 'image') return explicitType;
-  if (!src) return 'image';
-  return /\.(mp4|webm|ogg|mov|m4v)$/i.test(src) ? 'video' : 'image';
-}
 
 export default function TVPlayer() {
   const { tvId } = useParams();
@@ -25,23 +26,40 @@ export default function TVPlayer() {
   const [currentVersion, setCurrentVersion] = useState('Unknown');
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [nextCheckTime, setNextCheckTime] = useState(() => Date.now() + 30000);
+  const [videoTelemetry, setVideoTelemetry] = useState(null);
+  const [manualOffsetSec, setManualOffsetSec] = useState(0);
 
-  const videoRef = useRef(null);
-  const timerRef = useRef(null);
   const debugClickTimeoutRef = useRef(null);
+  const warmedVideoUrlsRef = useRef(new Set());
 
   // Synchronously compute slides (base slides + active multi-screen takeovers)
+  // enriched with build-time media-manifest metadata so durations are 100% deterministic.
   const slides = useMemo(() => {
     const path = `../../data/${tvId}.json`;
     const module = tvDataModules[path];
-    const baseSlides = module && module.slides
-      ? module.slides
-          .filter((slide) => !slide.unpublish)
-          .map((slide) => ({
-            ...slide,
-            type: detectMediaType(slide.src, slide.type),
-          }))
-      : [];
+
+    const baseSlides =
+      module && module.slides
+        ? module.slides
+            .filter((slide) => !slide.unpublish)
+            .map((slide) => {
+              const manifestEntry = getMediaManifestEntry(slide.src, mediaManifest);
+              const type = detectMediaType(slide.src, slide.type, mediaManifest);
+              const duration = resolveSlideDuration(slide, mediaManifest);
+
+              return {
+                ...slide,
+                type,
+                originalSrc: slide.src,
+                src: manifestEntry?.src || slide.src,
+                poster: manifestEntry?.poster || null,
+                mimeType: manifestEntry?.mimeType || null,
+                intrinsicDuration: manifestEntry?.duration || null,
+                videoBehavior: slide.videoBehavior || 'loop',
+                duration,
+              };
+            })
+        : [];
 
     // Process published Multi-Screen Takeovers
     const takeoverSlides = Object.values(takeoverModules)
@@ -49,14 +67,22 @@ export default function TVPlayer() {
       .filter((takeover) => takeover && (takeover.title || takeover.id) && !takeover.unpublish)
       .map((takeover) => {
         const mediaSrc = takeover[`${tvId}Media`];
-
         if (!mediaSrc) return null;
+
+        const manifestEntry = getMediaManifestEntry(mediaSrc, mediaManifest);
+        const type = detectMediaType(mediaSrc, takeover.type, mediaManifest);
+        const duration = resolveTakeoverDuration(takeover, mediaManifest);
 
         return {
           id: takeover.title || takeover.id,
-          type: detectMediaType(mediaSrc, takeover.type),
-          src: mediaSrc,
-          duration: takeover.duration || 15,
+          type,
+          originalSrc: mediaSrc,
+          src: manifestEntry?.src || mediaSrc,
+          poster: manifestEntry?.poster || null,
+          mimeType: manifestEntry?.mimeType || null,
+          intrinsicDuration: manifestEntry?.duration || null,
+          videoBehavior: takeover.videoBehavior || 'loop',
+          duration,
           syncGroup: takeover.title || takeover.id,
         };
       })
@@ -65,37 +91,46 @@ export default function TVPlayer() {
     return [...baseSlides, ...takeoverSlides];
   }, [tvId]);
 
-  const hasImagesToPreload = useMemo(
-    () => slides.some((s) => s.type === 'image'),
-    [slides]
-  );
+  // Preload all image slides AND video poster frames so transitions never flash black
+  const preloadImageUrls = useMemo(() => {
+    const urls = [];
+    for (const slide of slides) {
+      if (slide.type === 'image' && slide.src) {
+        urls.push(slide.src);
+      } else if (slide.type === 'video' && slide.poster) {
+        urls.push(slide.poster);
+      }
+    }
+    return urls;
+  }, [slides]);
 
+  const hasImagesToPreload = preloadImageUrls.length > 0;
   const isLoading = hasImagesToPreload && isPreloading;
 
-  // Preload images and manage loading state with GPU pre-decoding
   useEffect(() => {
     if (!hasImagesToPreload) return;
 
     let isMounted = true;
 
     const preloadImages = async () => {
-      const imagePromises = slides
-        .filter((slide) => slide.type === 'image')
-        .map((slide) => {
-          return new Promise((resolve) => {
-            const img = new Image();
-            img.src = slide.src;
-            if ('decode' in img && typeof img.decode === 'function') {
-              img.decode().then(resolve).catch(() => {
+      const imagePromises = preloadImageUrls.map((url) => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.src = url;
+          if ('decode' in img && typeof img.decode === 'function') {
+            img
+              .decode()
+              .then(resolve)
+              .catch(() => {
                 img.onload = resolve;
                 img.onerror = resolve;
               });
-            } else {
-              img.onload = resolve;
-              img.onerror = resolve;
-            }
-          });
+          } else {
+            img.onload = resolve;
+            img.onerror = resolve;
+          }
         });
+      });
 
       await Promise.all(imagePromises);
 
@@ -109,7 +144,7 @@ export default function TVPlayer() {
     return () => {
       isMounted = false;
     };
-  }, [slides, hasImagesToPreload]);
+  }, [preloadImageUrls, hasImagesToPreload]);
 
   // Calculate total playlist duration and slide time windows
   const playlistSchedule = useMemo(() => {
@@ -136,8 +171,9 @@ export default function TVPlayer() {
       setCurrentTime(nowMs);
 
       const totalDuration = playlistSchedule.totalDuration;
-      const nowSec = nowMs / 1000;
-      const currentCycleTime = nowSec % totalDuration;
+      const nowSec = nowMs / 1000 + manualOffsetSec;
+      const rawMod = nowSec % totalDuration;
+      const currentCycleTime = rawMod < 0 ? rawMod + totalDuration : rawMod;
 
       // Find active slide based on current cycle timestamp
       const windowIndex = playlistSchedule.windows.findIndex(
@@ -154,7 +190,34 @@ export default function TVPlayer() {
     return () => {
       clearInterval(intervalId);
     };
-  }, [isLoading, playlistSchedule]);
+  }, [isLoading, playlistSchedule, manualOffsetSec]);
+
+  // ── 1-Slide Lookahead HTTP Cache Warmup for Upcoming Video Slides ─────────
+  // Warms only the first 2 MB (moov atom + opening GOP) via Range request so
+  // large videos start fast without saturating bandwidth or claiming a 2nd
+  // hardware video decoder on LG Signage TV (Chromium 79).
+  useEffect(() => {
+    if (isLoading || slides.length <= 1) return;
+
+    const nextIndex = (currentIndex + 1) % slides.length;
+    const nextSlide = slides[nextIndex];
+    if (!nextSlide || nextSlide.type !== 'video' || !nextSlide.src) return;
+    if (warmedVideoUrlsRef.current.has(nextSlide.src)) return;
+
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    warmedVideoUrlsRef.current.add(nextSlide.src);
+
+    fetch(nextSlide.src, {
+      headers: { Range: 'bytes=0-2097151' },
+      ...(controller ? { signal: controller.signal } : {}),
+    }).catch(() => {
+      warmedVideoUrlsRef.current.delete(nextSlide.src);
+    });
+
+    return () => {
+      if (controller) controller.abort();
+    };
+  }, [currentIndex, slides, isLoading]);
 
   // Poll version for updates
   useEffect(() => {
@@ -181,17 +244,19 @@ export default function TVPlayer() {
     return () => clearInterval(intervalId);
   }, [currentVersion]);
 
-  // Clock tick for debug overlay
-  useEffect(() => {
-    if (!debugMode) return;
-    const timerId = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 100);
-    return () => clearInterval(timerId);
-  }, [debugMode]);
+  const handleVideoTelemetry = useCallback((telemetry) => {
+    setVideoTelemetry(telemetry);
+  }, []);
 
+  // Manual next-slide tap shifts local schedule offset so manual testing works with time sync
   const handleNextSlide = () => {
-    setCurrentIndex((prev) => (prev + 1) % slides.length);
+    if (playlistSchedule.windows.length <= 1) return;
+    const nextIdx = (currentIndex + 1) % playlistSchedule.windows.length;
+    const nextWin = playlistSchedule.windows[nextIdx];
+    const nowSec = Date.now() / 1000;
+    const rawNowMod = nowSec % playlistSchedule.totalDuration;
+    setManualOffsetSec(nextWin.start - rawNowMod + 0.05);
+    setCurrentIndex(nextIdx);
   };
 
   const handleDebugTrigger = () => {
@@ -202,6 +267,8 @@ export default function TVPlayer() {
     if (debugClicks + 1 >= 3) {
       setDebugMode((prev) => !prev);
       setDebugClicks(0);
+      // Reset any manual slide offset when toggling debug mode so TV returns to true NTP sync
+      setManualOffsetSec(0);
     } else {
       debugClickTimeoutRef.current = setTimeout(() => {
         setDebugClicks(0);
@@ -224,12 +291,20 @@ export default function TVPlayer() {
       </div>
     );
 
-  const currentSlide = slides[currentIndex];
-  const activeWindow = playlistSchedule.windows[currentIndex];
+  const safeIndex = currentIndex < slides.length ? currentIndex : 0;
+  const currentSlide = slides[safeIndex];
+  const activeWindow = playlistSchedule.windows[safeIndex];
   const totalPlaylistDuration = playlistSchedule.totalDuration;
-  const currentCycleTime = totalPlaylistDuration ? (currentTime / 1000) % totalPlaylistDuration : 0;
+  const rawCycle = totalPlaylistDuration
+    ? (currentTime / 1000 + manualOffsetSec) % totalPlaylistDuration
+    : 0;
+  const currentCycleTime = rawCycle < 0 ? rawCycle + totalPlaylistDuration : rawCycle;
   const elapsedInSlide = activeWindow ? Math.max(0, currentCycleTime - activeWindow.start) : 0;
-  const slideDuration = activeWindow ? activeWindow.duration : (currentSlide?.duration || 10);
+  const slideDuration = activeWindow ? activeWindow.duration : currentSlide?.duration || 10;
+
+  // Use 'wait' mode when rendering video slides so Chromium 79 never runs two
+  // hardware video decoders simultaneously during a crossfade.
+  const animateMode = currentSlide.type === 'video' ? 'wait' : 'sync';
 
   return (
     <div className="bg-black h-screen w-screen overflow-hidden flex items-center justify-center relative">
@@ -249,13 +324,13 @@ export default function TVPlayer() {
 
       {/* Debug Overlay */}
       {debugMode && (
-        <div className="absolute top-4 right-4 bg-black/80 text-green-400 p-4 rounded-md font-mono text-sm z-50 border border-green-800 shadow-lg pointer-events-none">
-          <div className="flex flex-col gap-2">
+        <div className="absolute top-4 right-4 bg-black/80 text-green-400 p-4 rounded-md font-mono text-sm z-50 border border-green-800 shadow-lg pointer-events-none max-w-sm">
+          <div className="flex flex-col gap-1.5">
             <div>
               <span className="text-gray-400">TV:</span> {tvId}
             </div>
             <div>
-              <span className="text-gray-400">Sync Mode:</span> Time-Based NTP (High-Precision 50ms)
+              <span className="text-gray-400">Sync Mode:</span> Time-Based NTP (50ms)
             </div>
             <div>
               <span className="text-gray-400">Version:</span> {currentVersion}
@@ -265,25 +340,58 @@ export default function TVPlayer() {
               {Math.max(0, Math.ceil((nextCheckTime - currentTime) / 1000))}s
             </div>
             <div>
-              <span className="text-gray-400">Cycle Time:</span> {currentCycleTime.toFixed(1)}s / {totalPlaylistDuration}s
+              <span className="text-gray-400">Cycle Time:</span> {currentCycleTime.toFixed(1)}s /{' '}
+              {totalPlaylistDuration}s
             </div>
             <div>
-              <span className="text-gray-400">Slide Window:</span> [{activeWindow?.start}s - {activeWindow?.end}s]
+              <span className="text-gray-400">Slide Window:</span> [{activeWindow?.start}s -{' '}
+              {activeWindow?.end}s]
             </div>
             <div>
-              <span className="text-gray-400">Slide Time:</span> {elapsedInSlide.toFixed(1)}s / {slideDuration}s
+              <span className="text-gray-400">Slide Time:</span> {elapsedInSlide.toFixed(1)}s /{' '}
+              {slideDuration}s
             </div>
             <div>
               <span className="text-gray-400">Type:</span> {currentSlide.type}
+              {currentSlide.mimeType ? ` (${currentSlide.mimeType})` : ''}
             </div>
+            {currentSlide.type === 'video' && (
+              <>
+                <div>
+                  <span className="text-gray-400">Behavior:</span> {currentSlide.videoBehavior}
+                </div>
+                {videoTelemetry && (
+                  <>
+                    <div>
+                      <span className="text-gray-400">Video Pos:</span>{' '}
+                      {videoTelemetry.videoTime.toFixed(2)}s / Target{' '}
+                      {videoTelemetry.targetTime.toFixed(2)}s
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Drift / Rate:</span>{' '}
+                      {videoTelemetry.driftMs >= 0 ? '+' : ''}
+                      {videoTelemetry.driftMs}ms ({videoTelemetry.playbackRate.toFixed(2)}x)
+                    </div>
+                    <div>
+                      <span className="text-gray-400">ReadyState:</span> {videoTelemetry.readyState}
+                    </div>
+                    {videoTelemetry.error && (
+                      <div className="text-red-400">
+                        <span className="text-gray-400">Error:</span> {videoTelemetry.error}
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}
 
-      <AnimatePresence mode="sync">
+      <AnimatePresence mode={animateMode}>
         {currentSlide.type === 'image' ? (
           <motion.img
-            key={currentSlide.id + '-img'}
+            key={`${currentSlide.id}-${safeIndex}-img`}
             src={currentSlide.src}
             alt="slide"
             className="absolute inset-0 w-full h-full object-contain"
@@ -294,20 +402,19 @@ export default function TVPlayer() {
           />
         ) : (
           <motion.div
-            key={currentSlide.id + '-vid'}
+            key={`${currentSlide.id}-${safeIndex}-vid`}
             className="absolute inset-0 w-full h-full"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.2 }}
           >
-            <video
-              ref={videoRef}
-              src={currentSlide.src}
-              className="w-full h-full object-contain"
-              autoPlay
-              muted
-              playsInline
+            <VideoSlide
+              slide={currentSlide}
+              activeWindow={activeWindow}
+              totalPlaylistDuration={totalPlaylistDuration}
+              manualOffsetSec={manualOffsetSec}
+              onTelemetry={debugMode ? handleVideoTelemetry : null}
             />
           </motion.div>
         )}
