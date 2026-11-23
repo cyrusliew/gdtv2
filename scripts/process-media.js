@@ -34,7 +34,7 @@ try {
 }
 
 const DEFAULT_MEDIA_API_URL = 'https://gdtv2-media-api.cyrusliew02.workers.dev';
-const LEGACY_MEDIA_BASES = ['https://media.hanrusplus.com'];
+const LEGACY_MEDIA_BASES = ['https://media.hanrusplus.com', 'https://tv.hanrusplus.com/r2'];
 const MEDIA_API_URL = (
   process.env.MEDIA_API_URL ||
   process.env.NEXT_PUBLIC_MEDIA_API_URL ||

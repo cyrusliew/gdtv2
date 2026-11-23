@@ -49,17 +49,7 @@ export function getDeviceSnapshot() {
 }
 
 function getTelemetryEndpoints() {
-  const endpoints = [];
-  try {
-    const origin = window.location.origin;
-    if (origin && origin.indexOf('tv.hanrusplus.com') !== -1) {
-      endpoints.push(`${origin}/r2/telemetry`);
-    }
-  } catch {
-    // Ignore
-  }
-  endpoints.push(`${MEDIA_API_URL}/telemetry`);
-  return endpoints;
+  return [`${MEDIA_API_URL}/telemetry`];
 }
 
 /**
