@@ -6,10 +6,12 @@ import {
 } from '../../utils/media';
 import { probeUrlError, sendTelemetry } from '../../utils/telemetry';
 
-const DRIFT_CHECK_INTERVAL_MS = 500;
-const DRIFT_IGNORE_THRESHOLD_SEC = 0.15;
-const DRIFT_HARD_SEEK_THRESHOLD_SEC = 0.6;
-const LOOP_BOUNDARY_MARGIN_SEC = 0.35;
+const STANDALONE_CHECK_INTERVAL_MS = 2000;
+const SYNC_CHECK_INTERVAL_MS = 1500;
+const SYNC_HARD_SEEK_THRESHOLD_SEC = 1.2;
+const INITIAL_SEEK_MIN_OFFSET_SEC = 1.5;
+const SEEK_COOLDOWN_MS = 4000;
+const LOOP_BOUNDARY_MARGIN_SEC = 0.5;
 
 let cachedH264Support = null;
 
@@ -84,6 +86,7 @@ export default function VideoSlide({
 
   const behavior = slide.videoBehavior === 'hold' ? 'hold' : 'loop';
   const manifestDuration = slide.intrinsicDuration || null;
+  const isMultiScreenSynced = Boolean(slide.syncGroup);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -92,6 +95,7 @@ export default function VideoSlide({
     let isMounted = true;
     let loggedPlaying = false;
     let loggedStalled = false;
+    let lastSeekAtMs = 0;
 
     sendTelemetry(tvId, 'video_mount', {
       slideId: slide.id,
@@ -161,10 +165,12 @@ export default function VideoSlide({
       if (!isMounted) return;
       const { elapsedInSlide, videoDuration, targetTime } = computeCurrentSchedule();
 
-      // Seek to exact deterministic offset before playback starts
+      // Only seek on mount if joining mid-window (>1.5s in); avoid flushing the
+      // LG webOS hardware decoder when starting normally near the start of a slide.
       try {
-        if (Math.abs(video.currentTime - targetTime) > 0.1) {
+        if (targetTime > INITIAL_SEEK_MIN_OFFSET_SEC && Math.abs(video.currentTime - targetTime) > 0.5) {
           video.currentTime = targetTime;
+          lastSeekAtMs = Date.now();
         }
       } catch {
         // Ignore if Chromium 79 hasn't buffered seekable ranges yet
@@ -234,8 +240,11 @@ export default function VideoSlide({
 
     const handleError = () => {
       if (!isMounted) return;
-      const code = video.error ? video.error.code : 'unknown';
-      const msg = video.error?.message || `MediaError code ${code}`;
+      // Ignore spurious error events with no MediaError (e.g. queued asynchronously
+      // when cleanup runs video.removeAttribute('src'); video.load()).
+      if (!video.error) return;
+      const code = video.error.code;
+      const msg = video.error.message || `MediaError code ${code}`;
 
       // If primary MP4 failed to decode and a VP9 WebM fallback is available, switch to it
       if (slide.webmSrc && activeSrc !== slide.webmSrc) {
@@ -289,7 +298,11 @@ export default function VideoSlide({
       syncInitialPosition();
     }
 
-    // Periodic drift check (500ms) — avoids constant decoder flushes on Chromium 79
+    // Lightweight health / sync check:
+    // - Never mutate playbackRate (0.95x/1.05x causes visible frame stutter on LG webOS hardware decoders).
+    // - Standalone videos (no syncGroup) play untouched at native 1.0x after mount.
+    // - Multi-screen synced takeovers only hard-seek when drift exceeds 1.2s (with 4s cooldown).
+    const checkIntervalMs = isMultiScreenSynced ? SYNC_CHECK_INTERVAL_MS : STANDALONE_CHECK_INTERVAL_MS;
     const driftIntervalId = window.setInterval(() => {
       if (!isMounted || video.readyState < 2 || video.seeking) return;
 
@@ -300,7 +313,6 @@ export default function VideoSlide({
         if (!video.paused) {
           video.pause();
         }
-        video.playbackRate = 1.0;
         reportTelemetry(targetTime, video.currentTime - targetTime, null);
         return;
       }
@@ -315,33 +327,26 @@ export default function VideoSlide({
         videoDuration,
         behavior === 'loop'
       );
-      const absDrift = Math.abs(drift);
 
-      if (behavior === 'loop' && isNearLoopBoundary(targetTime, videoDuration, LOOP_BOUNDARY_MARGIN_SEC)) {
-        if (video.playbackRate !== 1.0) video.playbackRate = 1.0;
-        reportTelemetry(targetTime, drift, null);
-        return;
-      }
-
-      if (absDrift < DRIFT_IGNORE_THRESHOLD_SEC) {
-        if (video.playbackRate !== 1.0) {
-          video.playbackRate = 1.0;
-        }
-      } else if (absDrift <= DRIFT_HARD_SEEK_THRESHOLD_SEC) {
-        // Gently nudge playback rate instead of hard seeking to prevent keyframe stutter
-        video.playbackRate = drift > 0 ? 0.95 : 1.05;
-      } else {
-        // Large drift (e.g. buffer stall or major clock jump): hard seek into lockstep
-        video.playbackRate = 1.0;
-        try {
-          video.currentTime = targetTime;
-        } catch {
-          // Ignore seek error
+      if (isMultiScreenSynced) {
+        const absDrift = Math.abs(drift);
+        const now = Date.now();
+        if (
+          absDrift > SYNC_HARD_SEEK_THRESHOLD_SEC &&
+          now - lastSeekAtMs >= SEEK_COOLDOWN_MS &&
+          !(behavior === 'loop' && isNearLoopBoundary(targetTime, videoDuration, LOOP_BOUNDARY_MARGIN_SEC))
+        ) {
+          lastSeekAtMs = now;
+          try {
+            video.currentTime = targetTime;
+          } catch {
+            // Ignore seek error
+          }
         }
       }
 
       reportTelemetry(targetTime, drift, null);
-    }, DRIFT_CHECK_INTERVAL_MS);
+    }, checkIntervalMs);
 
     return () => {
       isMounted = false;
@@ -369,6 +374,7 @@ export default function VideoSlide({
     slide.src,
     activeSrc,
     slide.webmSrc,
+    isMultiScreenSynced,
     currentSlideKey,
     useWebmFallback,
     activeWindow,

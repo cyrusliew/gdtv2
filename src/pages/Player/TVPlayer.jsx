@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-// eslint-disable-next-line no-unused-vars
-import { AnimatePresence, motion } from 'framer-motion';
 import mediaManifest from '../../data/media-manifest.json';
 import VideoSlide from './VideoSlide';
 import {
@@ -79,9 +77,17 @@ export default function TVPlayer() {
   const [manualOffsetSec, setManualOffsetSec] = useState(0);
 
   const debugClickTimeoutRef = useRef(null);
+  const debugModeRef = useRef(debugMode);
   const warmedVideoUrlsRef = useRef(new Set());
   const loggedLoadedImagesRef = useRef(new Set());
   const loggedErrorImagesRef = useRef(new Set());
+
+  useEffect(() => {
+    debugModeRef.current = debugMode;
+    if (debugMode) {
+      setCurrentTime(Date.now());
+    }
+  }, [debugMode]);
 
   // Determine whether this TV serves assets from Cloudflare R2 or local /assets/
   const useR2 = useMemo(() => {
@@ -188,6 +194,37 @@ export default function TVPlayer() {
     });
   }, [tvId, slides, useR2]);
 
+  // Calculate total playlist duration and slide time windows
+  const playlistSchedule = useMemo(() => {
+    if (slides.length === 0) return { totalDuration: 0, windows: [] };
+
+    let cumulative = 0;
+    const windows = slides.map((slide) => {
+      const duration = slide.duration || 10;
+      const start = cumulative;
+      const end = cumulative + duration;
+      cumulative = end;
+      return { slide, start, end, duration };
+    });
+
+    return { totalDuration: cumulative, windows };
+  }, [slides]);
+
+  const computeActiveIndexAt = useCallback(
+    (nowMs) => {
+      const totalDuration = playlistSchedule.totalDuration;
+      if (totalDuration <= 0) return 0;
+      const nowSec = nowMs / 1000 + manualOffsetSec;
+      const rawMod = nowSec % totalDuration;
+      const currentCycleTime = rawMod < 0 ? rawMod + totalDuration : rawMod;
+      const windowIndex = playlistSchedule.windows.findIndex(
+        (w) => currentCycleTime >= w.start && currentCycleTime < w.end
+      );
+      return windowIndex !== -1 ? windowIndex : 0;
+    },
+    [playlistSchedule, manualOffsetSec]
+  );
+
   useEffect(() => {
     if (!hasImagesToPreload) return;
 
@@ -231,6 +268,8 @@ export default function TVPlayer() {
       const results = await Promise.all(imagePromises);
 
       if (isMounted) {
+        // Set the exact NTP slide index before leaving loading state (no 1-frame flash of slide 0)
+        setCurrentIndex(computeActiveIndexAt(Date.now()));
         setIsPreloading(false);
         const failed = results.filter((r) => r.status !== 'ok');
         sendTelemetry(tvId, 'preload_done', {
@@ -248,43 +287,20 @@ export default function TVPlayer() {
     return () => {
       isMounted = false;
     };
-  }, [preloadImageUrls, hasImagesToPreload, tvId]);
-
-  // Calculate total playlist duration and slide time windows
-  const playlistSchedule = useMemo(() => {
-    if (slides.length === 0) return { totalDuration: 0, windows: [] };
-
-    let cumulative = 0;
-    const windows = slides.map((slide) => {
-      const duration = slide.duration || 10;
-      const start = cumulative;
-      const end = cumulative + duration;
-      cumulative = end;
-      return { slide, start, end, duration };
-    });
-
-    return { totalDuration: cumulative, windows };
-  }, [slides]);
+  }, [preloadImageUrls, hasImagesToPreload, tvId, computeActiveIndexAt]);
 
   // ── High-Precision Deterministic Time-Based Schedule Sync ─────────────────
+  // Only updates currentTime React state when Debug Mode is open so the TV
+  // does not re-render 20 times/second during normal playback.
   useEffect(() => {
     if (isLoading || playlistSchedule.totalDuration === 0) return;
 
     const syncToSchedule = () => {
       const nowMs = Date.now();
-      setCurrentTime(nowMs);
-
-      const totalDuration = playlistSchedule.totalDuration;
-      const nowSec = nowMs / 1000 + manualOffsetSec;
-      const rawMod = nowSec % totalDuration;
-      const currentCycleTime = rawMod < 0 ? rawMod + totalDuration : rawMod;
-
-      // Find active slide based on current cycle timestamp
-      const windowIndex = playlistSchedule.windows.findIndex(
-        (w) => currentCycleTime >= w.start && currentCycleTime < w.end
-      );
-
-      const activeIndex = windowIndex !== -1 ? windowIndex : 0;
+      if (debugModeRef.current) {
+        setCurrentTime(nowMs);
+      }
+      const activeIndex = computeActiveIndexAt(nowMs);
       setCurrentIndex((prevIndex) => (prevIndex !== activeIndex ? activeIndex : prevIndex));
     };
 
@@ -294,7 +310,7 @@ export default function TVPlayer() {
     return () => {
       clearInterval(intervalId);
     };
-  }, [isLoading, playlistSchedule, manualOffsetSec]);
+  }, [isLoading, playlistSchedule.totalDuration, computeActiveIndexAt]);
 
   // ── 1-Slide Lookahead HTTP Cache Warmup for Upcoming Video Slides ─────────
   // Warms only the first 2 MB (moov atom + opening GOP) via Range request for
@@ -443,10 +459,6 @@ export default function TVPlayer() {
   const elapsedInSlide = activeWindow ? Math.max(0, currentCycleTime - activeWindow.start) : 0;
   const slideDuration = activeWindow ? activeWindow.duration : currentSlide?.duration || 10;
 
-  // Use 'wait' mode when rendering video slides so Chromium 79 never runs two
-  // hardware video decoders simultaneously during a crossfade.
-  const animateMode = currentSlide.type === 'video' ? 'wait' : 'sync';
-
   return (
     <div className="bg-black h-screen w-screen overflow-hidden flex items-center justify-center relative">
       {/* Hidden fullscreen next-slide button */}
@@ -538,37 +550,44 @@ export default function TVPlayer() {
         </div>
       )}
 
-      <AnimatePresence mode={animateMode}>
-        {currentSlide.type === 'image' ? (
-          <motion.img
-            key={`${currentSlide.id}-${safeIndex}-img`}
-            src={currentSlide.src}
-            alt="slide"
-            className="absolute inset-0 w-full h-full object-contain"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
+      {/* Keep image slides persistently mounted with CSS opacity crossfades so LG
+          webOS Chromium 79 never re-decodes images or stalls WAAPI animations on transitions */}
+      {slides.map((slide, idx) => {
+        if (slide.type !== 'image') return null;
+        const isActive = idx === safeIndex;
+        const hideForVideo = currentSlide.type === 'video';
+        return (
+          <img
+            key={`${slide.id}-${idx}-img`}
+            src={slide.src}
+            alt={slide.id || 'slide'}
+            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+            style={{
+              opacity: isActive ? 1 : 0,
+              visibility: hideForVideo ? 'hidden' : 'visible',
+              zIndex: isActive ? 10 : 1,
+              transition: hideForVideo ? 'none' : 'opacity 300ms ease-in-out',
+            }}
             onLoad={(e) => {
               const imgEl = e.currentTarget;
-              if (!loggedLoadedImagesRef.current.has(currentSlide.src)) {
-                loggedLoadedImagesRef.current.add(currentSlide.src);
+              if (!loggedLoadedImagesRef.current.has(slide.src)) {
+                loggedLoadedImagesRef.current.add(slide.src);
                 sendTelemetry(tvId, 'img_loaded', {
-                  slideId: currentSlide.id,
-                  src: currentSlide.src,
+                  slideId: slide.id,
+                  src: slide.src,
                   w: imgEl.naturalWidth,
                   h: imgEl.naturalHeight,
                 });
               }
             }}
             onError={() => {
-              const failedSrc = currentSlide.src;
+              const failedSrc = slide.src;
               setLastImageError(failedSrc);
               if (!loggedErrorImagesRef.current.has(failedSrc)) {
                 loggedErrorImagesRef.current.add(failedSrc);
                 probeUrlError(failedSrc).then((probe) => {
                   sendTelemetry(tvId, 'img_error', {
-                    slideId: currentSlide.id,
+                    slideId: slide.id,
                     src: failedSrc,
                     probe,
                   });
@@ -576,26 +595,26 @@ export default function TVPlayer() {
               }
             }}
           />
-        ) : (
-          <motion.div
-            key={`${currentSlide.id}-${safeIndex}-vid`}
-            className="absolute inset-0 w-full h-full"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <VideoSlide
-              tvId={tvId}
-              slide={currentSlide}
-              activeWindow={activeWindow}
-              totalPlaylistDuration={totalPlaylistDuration}
-              manualOffsetSec={manualOffsetSec}
-              onTelemetry={debugMode ? handleVideoTelemetry : null}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+        );
+      })}
+
+      {/* Mount only the single active video slide so Chromium 79 never allocates
+          two hardware video decoders simultaneously */}
+      {currentSlide.type === 'video' && (
+        <div
+          key={`${currentSlide.id}-${safeIndex}-vid`}
+          className="absolute inset-0 w-full h-full z-20"
+        >
+          <VideoSlide
+            tvId={tvId}
+            slide={currentSlide}
+            activeWindow={activeWindow}
+            totalPlaylistDuration={totalPlaylistDuration}
+            manualOffsetSec={manualOffsetSec}
+            onTelemetry={debugMode ? handleVideoTelemetry : null}
+          />
+        </div>
+      )}
     </div>
   );
 }

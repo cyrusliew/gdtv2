@@ -341,7 +341,12 @@ async function handleManifest(
       entry.posterUrl = publicUrl;
     } else if (obj.key.endsWith('.webm')) {
       entry.webmUrl = publicUrl;
-    } else if (obj.key.endsWith('.mp4')) {
+    } else if (
+      obj.key.endsWith('.mp4') ||
+      obj.key.endsWith('.opt.jpg') ||
+      obj.key.endsWith('.opt.png') ||
+      obj.key.endsWith('.opt.webp')
+    ) {
       entry.optimizedUrl = publicUrl;
       if (meta.duration) entry.duration = Number(meta.duration);
       if (meta.width) entry.width = Number(meta.width);

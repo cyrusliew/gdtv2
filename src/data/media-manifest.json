@@ -1,12 +1,4 @@
 {
-  "/assets/FELIX-HAPPY-SERIES-2.0_TV_H.jpg": {
-    "type": "image",
-    "format": "jpeg",
-    "mimeType": "image/jpeg",
-    "width": 1920,
-    "height": 1080,
-    "size": 143030
-  },
   "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/130326-GC-EUREKA-Digital_TV_H.jpg": {
     "type": "image",
     "format": "jpg",
@@ -125,17 +117,16 @@
     "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/COFFEE-POSTER-2026_TV_General.jpg",
     "webmSrc": null,
     "poster": null,
-    "size": 187939,
-    "localSrc": "/assets/local/COFFEE-POSTER-2026_TV_General-a61fb08393.jpg"
+    "size": 187939
   },
   "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/FELIX-HAPPY-SERIES-2.0_TV_H.jpg": {
     "type": "image",
     "format": "jpg",
     "mimeType": "image/jpeg",
     "duration": null,
-    "width": null,
-    "height": null,
-    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/FELIX-HAPPY-SERIES-2.0_TV_H.jpg",
+    "width": 1920,
+    "height": 1080,
+    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/FELIX-HAPPY-SERIES-2_0_TV_H-c98c952ffa3c.opt.jpg",
     "webmSrc": null,
     "poster": null,
     "size": 1696294
@@ -174,10 +165,7 @@
     "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--0be98e22860f.mp4",
     "webmSrc": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--0be98e22860f.webm",
     "poster": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--0be98e22860f.poster.jpg",
-    "size": 158055778,
-    "localSrc": "/assets/local/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--e0fffe5542.mp4",
-    "localWebmSrc": "/assets/local/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--e0fffe5542.webm",
-    "localPoster": "/assets/local/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--e0fffe5542.poster.jpg"
+    "size": 158055778
   },
   "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/GC-x-REDBULL-WINTER-EDITION-FORMATS_TV-H.jpg": {
     "type": "image",
@@ -361,12 +349,12 @@
   },
   "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/Updated-COCO-TARO-DIGITALS_TV_H.png": {
     "type": "image",
-    "format": "png",
-    "mimeType": "image/png",
+    "format": "jpg",
+    "mimeType": "image/jpeg",
     "duration": null,
-    "width": null,
-    "height": null,
-    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/Updated-COCO-TARO-DIGITALS_TV_H.png",
+    "width": 1920,
+    "height": 1080,
+    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/Updated-COCO-TARO-DIGITALS_TV_H-e1459f2c119b.opt.jpg",
     "webmSrc": null,
     "poster": null,
     "size": 325419
@@ -385,12 +373,12 @@
   },
   "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/eggette-waffles-trio.png": {
     "type": "image",
-    "format": "png",
-    "mimeType": "image/png",
+    "format": "jpg",
+    "mimeType": "image/jpeg",
     "duration": null,
-    "width": null,
-    "height": null,
-    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/eggette-waffles-trio.png",
+    "width": 1672,
+    "height": 941,
+    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/eggette-waffles-trio-dde48c8104bd.opt.jpg",
     "webmSrc": null,
     "poster": null,
     "size": 451363
@@ -417,8 +405,7 @@
     "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/redbull-x-gongcha-launch-digital__tv_h-2.jpg",
     "webmSrc": null,
     "poster": null,
-    "size": 200662,
-    "localSrc": "/assets/local/redbull-x-gongcha-launch-digital__tv_h-2-24d3e2f45b.jpg"
+    "size": 200662
   },
   "https://media.hanrusplus.com/130326-GC-EUREKA-Digital_TV_H.jpg": {
     "type": "image",
@@ -538,17 +525,16 @@
     "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/COFFEE-POSTER-2026_TV_General.jpg",
     "webmSrc": null,
     "poster": null,
-    "size": 187939,
-    "localSrc": "/assets/local/COFFEE-POSTER-2026_TV_General-a61fb08393.jpg"
+    "size": 187939
   },
   "https://media.hanrusplus.com/FELIX-HAPPY-SERIES-2.0_TV_H.jpg": {
     "type": "image",
     "format": "jpg",
     "mimeType": "image/jpeg",
     "duration": null,
-    "width": null,
-    "height": null,
-    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/FELIX-HAPPY-SERIES-2.0_TV_H.jpg",
+    "width": 1920,
+    "height": 1080,
+    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/FELIX-HAPPY-SERIES-2_0_TV_H-c98c952ffa3c.opt.jpg",
     "webmSrc": null,
     "poster": null,
     "size": 1696294
@@ -587,10 +573,7 @@
     "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--0be98e22860f.mp4",
     "webmSrc": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--0be98e22860f.webm",
     "poster": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--0be98e22860f.poster.jpg",
-    "size": 158055778,
-    "localSrc": "/assets/local/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--e0fffe5542.mp4",
-    "localWebmSrc": "/assets/local/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--e0fffe5542.webm",
-    "localPoster": "/assets/local/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--e0fffe5542.poster.jpg"
+    "size": 158055778
   },
   "https://media.hanrusplus.com/GC-x-REDBULL-WINTER-EDITION-FORMATS_TV-H.jpg": {
     "type": "image",
@@ -774,12 +757,12 @@
   },
   "https://media.hanrusplus.com/Updated-COCO-TARO-DIGITALS_TV_H.png": {
     "type": "image",
-    "format": "png",
-    "mimeType": "image/png",
+    "format": "jpg",
+    "mimeType": "image/jpeg",
     "duration": null,
-    "width": null,
-    "height": null,
-    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/Updated-COCO-TARO-DIGITALS_TV_H.png",
+    "width": 1920,
+    "height": 1080,
+    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/Updated-COCO-TARO-DIGITALS_TV_H-e1459f2c119b.opt.jpg",
     "webmSrc": null,
     "poster": null,
     "size": 325419
@@ -798,12 +781,12 @@
   },
   "https://media.hanrusplus.com/eggette-waffles-trio.png": {
     "type": "image",
-    "format": "png",
-    "mimeType": "image/png",
+    "format": "jpg",
+    "mimeType": "image/jpeg",
     "duration": null,
-    "width": null,
-    "height": null,
-    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/eggette-waffles-trio.png",
+    "width": 1672,
+    "height": 941,
+    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/eggette-waffles-trio-dde48c8104bd.opt.jpg",
     "webmSrc": null,
     "poster": null,
     "size": 451363
@@ -830,8 +813,7 @@
     "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/redbull-x-gongcha-launch-digital__tv_h-2.jpg",
     "webmSrc": null,
     "poster": null,
-    "size": 200662,
-    "localSrc": "/assets/local/redbull-x-gongcha-launch-digital__tv_h-2-24d3e2f45b.jpg"
+    "size": 200662
   },
   "https://tv.hanrusplus.com/r2/130326-GC-EUREKA-Digital_TV_H.jpg": {
     "type": "image",
@@ -951,17 +933,16 @@
     "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/COFFEE-POSTER-2026_TV_General.jpg",
     "webmSrc": null,
     "poster": null,
-    "size": 187939,
-    "localSrc": "/assets/local/COFFEE-POSTER-2026_TV_General-a61fb08393.jpg"
+    "size": 187939
   },
   "https://tv.hanrusplus.com/r2/FELIX-HAPPY-SERIES-2.0_TV_H.jpg": {
     "type": "image",
     "format": "jpg",
     "mimeType": "image/jpeg",
     "duration": null,
-    "width": null,
-    "height": null,
-    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/FELIX-HAPPY-SERIES-2.0_TV_H.jpg",
+    "width": 1920,
+    "height": 1080,
+    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/FELIX-HAPPY-SERIES-2_0_TV_H-c98c952ffa3c.opt.jpg",
     "webmSrc": null,
     "poster": null,
     "size": 1696294
@@ -1000,10 +981,7 @@
     "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--0be98e22860f.mp4",
     "webmSrc": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--0be98e22860f.webm",
     "poster": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--0be98e22860f.poster.jpg",
-    "size": 158055778,
-    "localSrc": "/assets/local/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--e0fffe5542.mp4",
-    "localWebmSrc": "/assets/local/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--e0fffe5542.webm",
-    "localPoster": "/assets/local/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File--e0fffe5542.poster.jpg"
+    "size": 158055778
   },
   "https://tv.hanrusplus.com/r2/GC-x-REDBULL-WINTER-EDITION-FORMATS_TV-H.jpg": {
     "type": "image",
@@ -1187,12 +1165,12 @@
   },
   "https://tv.hanrusplus.com/r2/Updated-COCO-TARO-DIGITALS_TV_H.png": {
     "type": "image",
-    "format": "png",
-    "mimeType": "image/png",
+    "format": "jpg",
+    "mimeType": "image/jpeg",
     "duration": null,
-    "width": null,
-    "height": null,
-    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/Updated-COCO-TARO-DIGITALS_TV_H.png",
+    "width": 1920,
+    "height": 1080,
+    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/Updated-COCO-TARO-DIGITALS_TV_H-e1459f2c119b.opt.jpg",
     "webmSrc": null,
     "poster": null,
     "size": 325419
@@ -1211,12 +1189,12 @@
   },
   "https://tv.hanrusplus.com/r2/eggette-waffles-trio.png": {
     "type": "image",
-    "format": "png",
-    "mimeType": "image/png",
+    "format": "jpg",
+    "mimeType": "image/jpeg",
     "duration": null,
-    "width": null,
-    "height": null,
-    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/eggette-waffles-trio.png",
+    "width": 1672,
+    "height": 941,
+    "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/.generated/eggette-waffles-trio-dde48c8104bd.opt.jpg",
     "webmSrc": null,
     "poster": null,
     "size": 451363
@@ -1243,7 +1221,6 @@
     "src": "https://gdtv2-media-api.cyrusliew02.workers.dev/r2/redbull-x-gongcha-launch-digital__tv_h-2.jpg",
     "webmSrc": null,
     "poster": null,
-    "size": 200662,
-    "localSrc": "/assets/local/redbull-x-gongcha-launch-digital__tv_h-2-24d3e2f45b.jpg"
+    "size": 200662
   }
 }

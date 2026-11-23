@@ -54,6 +54,7 @@ const MAX_HEIGHT = 1080;
 const MAX_FPS = 30;
 const MAX_BITRATE_BPS = 12_000_000;
 const TRANSCODE_PROFILE_VERSION = 'c79-h264-1080p30-vp9-v2';
+const IMAGE_OPTIMIZE_PROFILE_VERSION = 'c79-srgb-1080p-q85-v1';
 
 // ── Toolchain Detection ─────────────────────────────────────────────────────
 
@@ -944,6 +945,12 @@ async function syncR2MediaManifest(manifest) {
         .digest('hex')
         .slice(0, 12);
 
+      const expectedImageHash = crypto
+        .createHash('sha256')
+        .update(`${IMAGE_OPTIMIZE_PROFILE_VERSION}:${entry.etag || entry.size || ''}`)
+        .digest('hex')
+        .slice(0, 12);
+
       let finalEntry = {
         type: entry.type,
         format: entry.format,
@@ -967,6 +974,8 @@ async function syncR2MediaManifest(manifest) {
         Boolean(entry.poster) &&
         Boolean(entry.webmSrc) &&
         entry.src !== publicUrl;
+      const alreadyOptimizedImageInR2 =
+        !isVideo && entry.sourceHash === expectedImageHash && entry.src !== publicUrl;
 
       if (isVideo && isReferenced && !MANIFEST_ONLY && HAS_FFMPEG && CI_UPLOAD_TOKEN && !alreadyOptimizedInR2) {
         console.log(`🎬 Downloading & optimizing R2 video for Chromium 79: ${entry.key}...`);
@@ -1043,6 +1052,72 @@ async function syncR2MediaManifest(manifest) {
         console.warn(
           `⚠️  Skipped Chromium 79 transcode for ${entry.key} (missing: ${missing.join(', ')})`
         );
+      } else if (!isVideo && isReferenced && !MANIFEST_ONLY && CI_UPLOAD_TOKEN && !alreadyOptimizedImageInR2) {
+        const ext = (path.extname(entry.key || '') || '').toLowerCase();
+        if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+          try {
+            const dlRes = await fetch(publicUrl);
+            if (dlRes.ok) {
+              const rawBuf = Buffer.from(await dlRes.arrayBuffer());
+              const meta = await sharp(rawBuf).metadata();
+              const needsImageOpt =
+                meta.space !== 'srgb' ||
+                Boolean(meta.hasProfile) ||
+                Boolean(meta.paletteBitDepth) ||
+                (meta.width && meta.width > MAX_WIDTH) ||
+                (meta.height && meta.height > MAX_HEIGHT) ||
+                rawBuf.length > 350 * 1024;
+
+              if (needsImageOpt) {
+                const safeBase = path
+                  .basename(entry.key, ext)
+                  .replace(/[^a-zA-Z0-9_-]/g, '_')
+                  .slice(0, 80);
+                const optTmp = path.join(tmpDir, `${safeBase}-${expectedImageHash}.opt.jpg`);
+                await sharp(rawBuf)
+                  .toColorspace('srgb')
+                  .flatten({ background: '#000000' })
+                  .resize({
+                    width: MAX_WIDTH,
+                    height: MAX_HEIGHT,
+                    fit: 'inside',
+                    withoutEnlargement: true,
+                  })
+                  .jpeg({ quality: 85, mozjpeg: true })
+                  .toFile(optTmp);
+
+                const optMeta = await sharp(optTmp).metadata();
+                const optKey = `.generated/${safeBase}-${expectedImageHash}.opt.jpg`;
+                const uploadedImg = await uploadBufferToR2(optKey, optTmp, 'image/jpeg', {
+                  'X-Media-Type': 'image',
+                  'X-Original-Key': entry.key,
+                  'X-Source-Hash': expectedImageHash,
+                  ...(optMeta.width ? { 'X-Media-Width': String(optMeta.width) } : {}),
+                  ...(optMeta.height ? { 'X-Media-Height': String(optMeta.height) } : {}),
+                });
+
+                const origKb = (rawBuf.length / 1024).toFixed(0);
+                const newKb = (fs.statSync(optTmp).size / 1024).toFixed(0);
+                console.log(
+                  `🖼️  Optimized R2 image for LG TV (${meta.space || 'unknown'} → sRGB JPEG): ${entry.key} (${origKb}KB → ${newKb}KB)`
+                );
+
+                finalEntry = {
+                  ...finalEntry,
+                  format: 'jpg',
+                  mimeType: 'image/jpeg',
+                  width: optMeta.width ?? finalEntry.width,
+                  height: optMeta.height ?? finalEntry.height,
+                  src: uploadedImg.src,
+                };
+              }
+            }
+          } catch (err) {
+            console.warn(`⚠️  Failed to optimize R2 image ${entry.key}:`, err.message);
+          }
+        }
+      } else if (alreadyOptimizedImageInR2) {
+        console.log(`⚡ Using cached R2 Chromium 79 image optimization for ${entry.key}`);
       }
 
       const needsLocalMirror =
