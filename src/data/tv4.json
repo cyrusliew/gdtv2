@@ -1,11 +1,11 @@
 {
-  "useR2": false,
+  "useR2": true,
   "slides": [
     {
       "id": "recommendation",
       "src": "https://media.hanrusplus.com/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File-.mp4",
       "duration": 228,
-      "unpublish": true
+      "unpublish": false
     },
     {
       "id": "coffee",
