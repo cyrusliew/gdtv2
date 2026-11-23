@@ -49,6 +49,13 @@ export default defineConfig({
         format: "json",
         fields: [
           {
+            name: "useR2",
+            label: "Serve Media from Cloudflare R2",
+            type: "boolean",
+            description:
+              "ON: serve media from Cloudflare R2. OFF: mirror media into /assets/local/ during build and serve from static hosting (GitHub Pages).",
+          },
+          {
             name: "slides",
             label: "Slides",
             type: "object",

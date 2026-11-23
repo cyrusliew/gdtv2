@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Monitor, Pencil } from 'phosphor-react';
 
+const tvDataModules = import.meta.glob('../data/tv*.json', { eager: true });
+
 export default function LandingPage() {
   const tvs = ['tv1', 'tv2', 'tv3', 'tv4'];
 
@@ -15,23 +17,36 @@ export default function LandingPage() {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          {tvs.map((tv, index) => (
-            <Link
-              key={tv}
-              to={`/${tv}`}
-              className="group bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 hover:border-blue-500 transition-all hover:shadow-blue-500/20 flex items-center justify-between"
-            >
-              <div className="flex items-center space-x-4">
-                <div className="p-3 bg-gray-700 rounded-lg group-hover:bg-blue-600 transition-colors">
-                  <Monitor size={32} weight="duotone" />
+          {tvs.map((tv, index) => {
+            const tvMod = tvDataModules[`../data/${tv}.json`];
+            const useR2 = Boolean(tvMod && tvMod.useR2 === true);
+            return (
+              <Link
+                key={tv}
+                to={`/${tv}`}
+                className="group bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 hover:border-blue-500 transition-all hover:shadow-blue-500/20 flex items-center justify-between"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="p-3 bg-gray-700 rounded-lg group-hover:bg-blue-600 transition-colors">
+                    <Monitor size={32} weight="duotone" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold capitalize">TV Display {index + 1}</h2>
+                    <span className="text-sm text-gray-500 group-hover:text-gray-300">View Slideshow</span>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-xl font-semibold capitalize">TV Display {index + 1}</h2>
-                  <span className="text-sm text-gray-500 group-hover:text-gray-300">View Slideshow</span>
-                </div>
-              </div>
-            </Link>
-          ))}
+                <span
+                  className={`text-xs font-mono px-2.5 py-1 rounded-full border ${
+                    useR2
+                      ? 'bg-blue-900/50 text-blue-300 border-blue-700'
+                      : 'bg-green-900/40 text-green-300 border-green-700'
+                  }`}
+                >
+                  {useR2 ? 'R2' : 'Local'}
+                </span>
+              </Link>
+            );
+          })}
         </div>
 
         <div className="flex justify-center">

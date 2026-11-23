@@ -21,6 +21,9 @@ export interface Env {
 
 const MAX_DIRECT_UPLOAD_BYTES = 95 * 1024 * 1024; // 95 MB (Cloudflare Workers Free plan max request body is 100 MB; larger files use /media/multipart/*)
 const GENERATED_PREFIX = '.generated/';
+const TELEMETRY_PREFIX = '.generated/logs/';
+const MAX_TELEMETRY_EVENTS = 60;
+const MAX_TELEMETRY_BODY_BYTES = 8192;
 
 const ALLOWED_EXTENSIONS = new Set([
   'jpg',
@@ -736,6 +739,125 @@ async function handleStreamFile(
   });
 }
 
+async function handlePostTelemetry(
+  request: Request,
+  env: Env,
+  corsHeaders: Record<string, string>
+): Promise<Response> {
+  const rawText = await request.text();
+  if (!rawText || rawText.length > MAX_TELEMETRY_BODY_BYTES) {
+    return jsonResponse({ error: 'Invalid or oversized telemetry payload.' }, 400, corsHeaders);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(rawText) as Record<string, unknown>;
+  } catch {
+    return jsonResponse({ error: 'Malformed JSON.' }, 400, corsHeaders);
+  }
+
+  const rawTvId = typeof body.tvId === 'string' ? body.tvId : 'unknown';
+  const tvId = rawTvId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'unknown';
+  const event = typeof body.event === 'string' ? body.event.slice(0, 64) : 'log';
+
+  const cf = (request as Request & { cf?: { country?: string; colo?: string; tlsVersion?: string; httpProtocol?: string } }).cf;
+  const record = {
+    receivedAt: new Date().toISOString(),
+    tvId,
+    sessionId: typeof body.sessionId === 'string' ? body.sessionId.slice(0, 64) : null,
+    buildVersion: typeof body.buildVersion === 'string' ? body.buildVersion.slice(0, 32) : null,
+    event,
+    clientTs: typeof body.ts === 'string' ? body.ts.slice(0, 64) : null,
+    ip: request.headers.get('CF-Connecting-IP') || null,
+    ua: request.headers.get('User-Agent') || null,
+    tls: cf?.tlsVersion || null,
+    httpProtocol: cf?.httpProtocol || null,
+    colo: cf?.colo || null,
+    data: body.data ?? null,
+  };
+
+  console.log(JSON.stringify({ message: 'tv_telemetry', ...record }));
+
+  const logKey = `${TELEMETRY_PREFIX}${tvId}.json`;
+  let existingEvents: Array<Record<string, unknown>> = [];
+  try {
+    const existingObj = await env.MEDIA_BUCKET.get(logKey);
+    if (existingObj) {
+      const parsed = (await existingObj.json()) as { events?: Array<Record<string, unknown>> };
+      if (Array.isArray(parsed.events)) {
+        existingEvents = parsed.events;
+      }
+    }
+  } catch {
+    existingEvents = [];
+  }
+
+  existingEvents.push(record);
+  if (existingEvents.length > MAX_TELEMETRY_EVENTS) {
+    existingEvents = existingEvents.slice(existingEvents.length - MAX_TELEMETRY_EVENTS);
+  }
+
+  await env.MEDIA_BUCKET.put(
+    logKey,
+    JSON.stringify({
+      tvId,
+      updatedAt: record.receivedAt,
+      lastUa: record.ua,
+      lastBuildVersion: record.buildVersion,
+      lastTls: record.tls,
+      lastHttpProtocol: record.httpProtocol,
+      events: existingEvents,
+    }),
+    {
+      httpMetadata: {
+        contentType: 'application/json',
+        cacheControl: 'no-store',
+      },
+    }
+  );
+
+  return jsonResponse({ ok: true }, 200, corsHeaders);
+}
+
+async function handleGetTelemetry(
+  url: URL,
+  env: Env,
+  corsHeaders: Record<string, string>
+): Promise<Response> {
+  const tvIdParam = (url.searchParams.get('tvId') || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32);
+  const headers = {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+    ...corsHeaders,
+  };
+
+  if (tvIdParam) {
+    const obj = await env.MEDIA_BUCKET.get(`${TELEMETRY_PREFIX}${tvIdParam}.json`);
+    if (!obj) {
+      return new Response(JSON.stringify({ tvId: tvIdParam, events: [] }, null, 2), { status: 200, headers });
+    }
+    const data = await obj.json();
+    return new Response(JSON.stringify(data, null, 2), { status: 200, headers });
+  }
+
+  const listed = await env.MEDIA_BUCKET.list({ prefix: TELEMETRY_PREFIX, limit: 50 });
+  const devices: Record<string, unknown> = {};
+  for (const item of listed.objects) {
+    if (!item.key.endsWith('.json')) continue;
+    const obj = await env.MEDIA_BUCKET.get(item.key);
+    if (!obj) continue;
+    try {
+      const parsed = (await obj.json()) as { tvId?: string };
+      const id = parsed.tvId || item.key.slice(TELEMETRY_PREFIX.length, -5);
+      devices[id] = parsed;
+    } catch {
+      // Ignore corrupt log file
+    }
+  }
+
+  return new Response(JSON.stringify({ devices }, null, 2), { status: 200, headers });
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const corsHeaders = getCorsHeaders(request, env);
@@ -749,6 +871,15 @@ export default {
     try {
       if (url.pathname === '/health' && request.method === 'GET') {
         return jsonResponse({ ok: true, bucket: 'MEDIA_BUCKET' }, 200, corsHeaders);
+      }
+
+      if (url.pathname === '/telemetry' || url.pathname === '/r2/telemetry') {
+        if (request.method === 'POST') {
+          return await handlePostTelemetry(request, env, corsHeaders);
+        }
+        if (request.method === 'GET') {
+          return await handleGetTelemetry(url, env, corsHeaders);
+        }
       }
 
       if (url.pathname.startsWith('/r2/') && (request.method === 'GET' || request.method === 'HEAD')) {

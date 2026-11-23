@@ -26,9 +26,11 @@ const forceTranspile = () => {
   }
 }
 
+const BUILD_TIMESTAMP = Date.now();
+
 // Custom plugin to generate version.json
 const versionPlugin = () => {
-  const version = { timestamp: Date.now() };
+  const version = { timestamp: BUILD_TIMESTAMP };
 
   console.log(`\nBuild Version: ${version.timestamp}\n`);
 
@@ -55,6 +57,9 @@ const versionPlugin = () => {
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  define: {
+    __APP_BUILD_VERSION__: JSON.stringify(String(BUILD_TIMESTAMP)),
+  },
   plugins: [
     forceTranspile(),
     react({

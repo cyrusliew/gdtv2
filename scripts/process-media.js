@@ -18,6 +18,7 @@ const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 const ASSETS_DIR = path.join(ROOT_DIR, 'public/assets');
 const GENERATED_DIR = path.join(ASSETS_DIR, '.generated');
+const LOCAL_MIRROR_DIR = path.join(ASSETS_DIR, 'local');
 const DATA_DIR = path.join(ROOT_DIR, 'src/data');
 const TAKEOVERS_DIR = path.join(DATA_DIR, 'takeovers');
 const MANIFEST_PATH = path.join(DATA_DIR, 'media-manifest.json');
@@ -703,16 +704,28 @@ function auditPlaylistDurations(manifest) {
 // ── Cloudflare R2 Remote Media Sync & CI Transcoding ───────────────────────
 
 function collectReferencedRemoteUrls() {
-  const urls = new Set();
-  if (!fs.existsSync(DATA_DIR)) return urls;
+  const allReferenced = new Set();
+  const localMirrorNeeded = new Set();
+  const tvUseR2Map = new Map();
+
+  if (!fs.existsSync(DATA_DIR)) {
+    return { allReferenced, localMirrorNeeded };
+  }
 
   const tvFiles = fs.readdirSync(DATA_DIR).filter((f) => /^tv\d+\.json$/i.test(f));
   for (const tvFile of tvFiles) {
+    const tvId = path.basename(tvFile, '.json');
     try {
       const data = JSON.parse(fs.readFileSync(path.join(DATA_DIR, tvFile), 'utf8'));
+      const useR2 = data.useR2 === true;
+      tvUseR2Map.set(tvId, useR2);
       for (const slide of data.slides || []) {
         if (!slide.unpublish && typeof slide.src === 'string' && /^https?:\/\//i.test(slide.src)) {
-          urls.add(normalizeAssetPath(slide.src));
+          const normalized = normalizeAssetPath(slide.src);
+          allReferenced.add(normalized);
+          if (!useR2) {
+            localMirrorNeeded.add(normalized);
+          }
         }
       }
     } catch {
@@ -725,9 +738,14 @@ function collectReferencedRemoteUrls() {
       try {
         const data = JSON.parse(fs.readFileSync(path.join(TAKEOVERS_DIR, f), 'utf8'));
         if (data.unpublish) continue;
-        for (const k of ['tv1Media', 'tv2Media', 'tv3Media', 'tv4Media']) {
+        for (const tvId of ['tv1', 'tv2', 'tv3', 'tv4']) {
+          const k = `${tvId}Media`;
           if (typeof data[k] === 'string' && /^https?:\/\//i.test(data[k])) {
-            urls.add(normalizeAssetPath(data[k]));
+            const normalized = normalizeAssetPath(data[k]);
+            allReferenced.add(normalized);
+            if (tvUseR2Map.get(tvId) !== true) {
+              localMirrorNeeded.add(normalized);
+            }
           }
         }
       } catch {
@@ -736,7 +754,67 @@ function collectReferencedRemoteUrls() {
     }
   }
 
-  return urls;
+  return { allReferenced, localMirrorNeeded };
+}
+
+async function mirrorRemoteAssetLocally(url, fileName, { optimizeImage = false } = {}) {
+  if (!url) return null;
+  fs.mkdirSync(LOCAL_MIRROR_DIR, { recursive: true });
+  const destPath = path.join(LOCAL_MIRROR_DIR, fileName);
+
+  if (fs.existsSync(destPath)) {
+    return `/assets/local/${fileName}`;
+  }
+
+  if (MANIFEST_ONLY) {
+    return null;
+  }
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    console.warn(`⚠️  Failed to mirror ${url} locally (HTTP ${res.status})`);
+    return null;
+  }
+
+  const rawBuf = Buffer.from(await res.arrayBuffer());
+  const tmpPath = `${destPath}.tmp`;
+
+  if (optimizeImage) {
+    try {
+      const img = sharp(rawBuf);
+      const meta = await img.metadata();
+      const fmt = (meta.format || '').toLowerCase();
+      if (['jpeg', 'jpg', 'png', 'webp'].includes(fmt)) {
+        const pipeline = sharp(rawBuf)
+          .toColorspace('srgb')
+          .resize({
+            width: MAX_WIDTH,
+            height: MAX_HEIGHT,
+            fit: 'inside',
+            withoutEnlargement: true,
+          });
+        if (fmt === 'jpeg' || fmt === 'jpg') {
+          pipeline.jpeg({ quality: 82, mozjpeg: true });
+        } else if (fmt === 'png') {
+          pipeline.png({ compressionLevel: 9, palette: true });
+        } else if (fmt === 'webp') {
+          pipeline.webp({ quality: 82 });
+        }
+        await pipeline.toFile(tmpPath);
+        fs.renameSync(tmpPath, destPath);
+        console.log(`📦 Mirrored & optimized image to /assets/local/${fileName}`);
+        return `/assets/local/${fileName}`;
+      }
+    } catch (err) {
+      console.warn(`⚠️  sharp optimization failed for ${fileName}, saving raw copy:`, err.message);
+      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+    }
+  }
+
+  fs.writeFileSync(tmpPath, rawBuf);
+  fs.renameSync(tmpPath, destPath);
+  console.log(`📦 Mirrored asset to /assets/local/${fileName}`);
+  return `/assets/local/${fileName}`;
 }
 
 async function uploadBufferToR2(key, filePath, contentType, metadataHeaders = {}) {
@@ -848,7 +926,8 @@ async function syncR2MediaManifest(manifest) {
     return;
   }
 
-  const referencedUrls = collectReferencedRemoteUrls();
+  const { allReferenced: referencedUrls, localMirrorNeeded } = collectReferencedRemoteUrls();
+  const activeMirrorFiles = new Set();
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gdtv2-r2-'));
 
   try {
@@ -966,10 +1045,74 @@ async function syncR2MediaManifest(manifest) {
         );
       }
 
+      const needsLocalMirror =
+        localMirrorNeeded.has(normalizedUrl) ||
+        legacyAliasUrls.some((alias) => localMirrorNeeded.has(alias));
+
+      if (needsLocalMirror) {
+        const ext = (path.extname(entry.key || '') || (isVideo ? '.mp4' : '.jpg')).toLowerCase();
+        const safeBase = path
+          .basename(entry.key || 'asset', path.extname(entry.key || ''))
+          .replace(/[^a-zA-Z0-9_-]/g, '_')
+          .slice(0, 80);
+        const mirrorHash = crypto
+          .createHash('sha256')
+          .update(`${entry.etag || entry.size || ''}:${finalEntry.src}`)
+          .digest('hex')
+          .slice(0, 10);
+
+        if (isVideo) {
+          const mp4File = `${safeBase}-${mirrorHash}.mp4`;
+          const localSrc = await mirrorRemoteAssetLocally(finalEntry.src, mp4File);
+          if (localSrc) {
+            finalEntry.localSrc = localSrc;
+            activeMirrorFiles.add(mp4File);
+          }
+
+          if (finalEntry.webmSrc) {
+            const webmFile = `${safeBase}-${mirrorHash}.webm`;
+            const localWebmSrc = await mirrorRemoteAssetLocally(finalEntry.webmSrc, webmFile);
+            if (localWebmSrc) {
+              finalEntry.localWebmSrc = localWebmSrc;
+              activeMirrorFiles.add(webmFile);
+            }
+          }
+
+          if (finalEntry.poster) {
+            const posterFile = `${safeBase}-${mirrorHash}.poster.jpg`;
+            const localPoster = await mirrorRemoteAssetLocally(finalEntry.poster, posterFile, {
+              optimizeImage: true,
+            });
+            if (localPoster) {
+              finalEntry.localPoster = localPoster;
+              activeMirrorFiles.add(posterFile);
+            }
+          }
+        } else {
+          const imgFile = `${safeBase}-${mirrorHash}${ext}`;
+          const localSrc = await mirrorRemoteAssetLocally(finalEntry.src, imgFile, {
+            optimizeImage: true,
+          });
+          if (localSrc) {
+            finalEntry.localSrc = localSrc;
+            activeMirrorFiles.add(imgFile);
+          }
+        }
+      }
+
       manifest[normalizedUrl] = finalEntry;
       // Keep legacy media.hanrusplus.com keys aliased to the new same-origin tv.hanrusplus.com/r2 URLs
       for (const alias of legacyAliasUrls) {
         manifest[alias] = finalEntry;
+      }
+    }
+
+    // Prune unused mirrored files in public/assets/local/ during full builds
+    if (!MANIFEST_ONLY && fs.existsSync(LOCAL_MIRROR_DIR)) {
+      for (const existing of fs.readdirSync(LOCAL_MIRROR_DIR)) {
+        if (!activeMirrorFiles.has(existing)) {
+          fs.rmSync(path.join(LOCAL_MIRROR_DIR, existing), { force: true });
+        }
       }
     }
   } finally {

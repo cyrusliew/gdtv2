@@ -4,6 +4,7 @@ import {
   computeShortestLoopDrift,
   isNearLoopBoundary,
 } from '../../utils/media';
+import { probeUrlError, sendTelemetry } from '../../utils/telemetry';
 
 const DRIFT_CHECK_INTERVAL_MS = 500;
 const DRIFT_IGNORE_THRESHOLD_SEC = 0.15;
@@ -55,6 +56,7 @@ function pickInitialVideoSrc(slide) {
  * - Explicitly frees the hardware video decoder on unmount for Chromium 79 stability.
  */
 export default function VideoSlide({
+  tvId,
   slide,
   activeWindow,
   totalPlaylistDuration,
@@ -88,6 +90,16 @@ export default function VideoSlide({
     if (!video || !activeWindow || !totalPlaylistDuration || !activeSrc) return undefined;
 
     let isMounted = true;
+    let loggedPlaying = false;
+    let loggedStalled = false;
+
+    sendTelemetry(tvId, 'video_mount', {
+      slideId: slide.id,
+      activeSrc,
+      primarySrc: slide.src,
+      webmSrc: slide.webmSrc || null,
+      h264Supported: browserSupportsH264(),
+    });
 
     // Ensure src is set (handles React StrictMode double-mount and fallback switches)
     if (video.getAttribute('src') !== activeSrc) {
@@ -194,6 +206,32 @@ export default function VideoSlide({
       }
     };
 
+    const handlePlaying = () => {
+      if (!isMounted || loggedPlaying) return;
+      loggedPlaying = true;
+      sendTelemetry(tvId, 'video_playing', {
+        slideId: slide.id,
+        src: activeSrc,
+        readyState: video.readyState,
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+        duration: Number.isFinite(video.duration) ? Number(video.duration.toFixed(2)) : null,
+        currentTime: Number.isFinite(video.currentTime) ? Number(video.currentTime.toFixed(2)) : 0,
+      });
+    };
+
+    const handleStalled = () => {
+      if (!isMounted || loggedStalled) return;
+      loggedStalled = true;
+      sendTelemetry(tvId, 'video_stalled', {
+        slideId: slide.id,
+        src: activeSrc,
+        readyState: video.readyState,
+        networkState: video.networkState,
+        currentTime: Number.isFinite(video.currentTime) ? Number(video.currentTime.toFixed(2)) : 0,
+      });
+    };
+
     const handleError = () => {
       if (!isMounted) return;
       const code = video.error ? video.error.code : 'unknown';
@@ -202,6 +240,15 @@ export default function VideoSlide({
       // If primary MP4 failed to decode and a VP9 WebM fallback is available, switch to it
       if (slide.webmSrc && activeSrc !== slide.webmSrc) {
         console.warn(`Video playback error (${activeSrc}): ${msg} — falling back to WebM`);
+        sendTelemetry(tvId, 'video_fallback', {
+          slideId: slide.id,
+          failedSrc: activeSrc,
+          fallbackSrc: slide.webmSrc,
+          errorCode: code,
+          errorMessage: msg,
+          readyState: video.readyState,
+          networkState: video.networkState,
+        });
         setFallbackState({
           slideKey: currentSlideKey,
           useWebmFallback: true,
@@ -211,6 +258,17 @@ export default function VideoSlide({
       }
 
       console.error(`Video playback error (${activeSrc}):`, msg);
+      const errSnapshot = {
+        slideId: slide.id,
+        src: activeSrc,
+        errorCode: code,
+        errorMessage: msg,
+        readyState: video.readyState,
+        networkState: video.networkState,
+      };
+      probeUrlError(activeSrc).then((probe) => {
+        sendTelemetry(tvId, 'video_error', { ...errSnapshot, probe });
+      });
       setFallbackState({
         slideKey: currentSlideKey,
         useWebmFallback,
@@ -221,6 +279,8 @@ export default function VideoSlide({
 
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
     video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('playing', handlePlaying);
+    video.addEventListener('stalled', handleStalled);
     video.addEventListener('ended', handleEnded);
     video.addEventListener('error', handleError);
 
@@ -288,6 +348,8 @@ export default function VideoSlide({
       window.clearInterval(driftIntervalId);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('playing', handlePlaying);
+      video.removeEventListener('stalled', handleStalled);
       video.removeEventListener('ended', handleEnded);
       video.removeEventListener('error', handleError);
 
@@ -302,6 +364,9 @@ export default function VideoSlide({
       }
     };
   }, [
+    tvId,
+    slide.id,
+    slide.src,
     activeSrc,
     slide.webmSrc,
     currentSlideKey,

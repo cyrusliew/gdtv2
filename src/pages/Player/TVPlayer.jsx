@@ -10,6 +10,54 @@ import {
   resolveSlideDuration,
   resolveTakeoverDuration,
 } from '../../utils/media';
+import {
+  BUILD_VERSION,
+  getDeviceSnapshot,
+  probeUrlError,
+  sendTelemetry,
+} from '../../utils/telemetry';
+
+function hasDebugQueryFlag() {
+  try {
+    return (
+      window.location.search.indexOf('debug=1') !== -1 ||
+      window.location.hash.indexOf('debug=1') !== -1
+    );
+  } catch {
+    return false;
+  }
+}
+
+function getR2QueryOverride() {
+  try {
+    const combined = `${window.location.search}&${window.location.hash}`;
+    if (/(?:[?&#])r2=1(?:&|$)/.test(combined)) return true;
+    if (/(?:[?&#])r2=0(?:&|$)/.test(combined)) return false;
+  } catch {
+    // Ignore
+  }
+  return null;
+}
+
+function resolveSlideMediaSources(rawSrc, manifestEntry, useR2) {
+  if (useR2) {
+    return {
+      src: (manifestEntry && manifestEntry.src) || rawSrc,
+      webmSrc: (manifestEntry && manifestEntry.webmSrc) || null,
+      poster: (manifestEntry && manifestEntry.poster) || null,
+    };
+  }
+
+  return {
+    src:
+      (manifestEntry && manifestEntry.localSrc) ||
+      (typeof rawSrc === 'string' && rawSrc.startsWith('/assets/') ? rawSrc : null) ||
+      (manifestEntry && manifestEntry.src) ||
+      rawSrc,
+    webmSrc: (manifestEntry && manifestEntry.localWebmSrc) || null,
+    poster: (manifestEntry && manifestEntry.localPoster) || null,
+  };
+}
 
 // Import all JSON files from the data directory
 const tvDataModules = import.meta.glob('../../data/tv*.json', { eager: true });
@@ -21,16 +69,28 @@ export default function TVPlayer() {
   const [isPreloading, setIsPreloading] = useState(true);
 
   // Debug Mode State
-  const [debugMode, setDebugMode] = useState(false);
+  const [debugMode, setDebugMode] = useState(() => hasDebugQueryFlag());
   const [debugClicks, setDebugClicks] = useState(0);
-  const [currentVersion, setCurrentVersion] = useState('Unknown');
+  const [currentVersion, setCurrentVersion] = useState(() => BUILD_VERSION);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [nextCheckTime, setNextCheckTime] = useState(() => Date.now() + 30000);
   const [videoTelemetry, setVideoTelemetry] = useState(null);
+  const [lastImageError, setLastImageError] = useState(null);
   const [manualOffsetSec, setManualOffsetSec] = useState(0);
 
   const debugClickTimeoutRef = useRef(null);
   const warmedVideoUrlsRef = useRef(new Set());
+  const loggedLoadedImagesRef = useRef(new Set());
+  const loggedErrorImagesRef = useRef(new Set());
+
+  // Determine whether this TV serves assets from Cloudflare R2 or local /assets/
+  const useR2 = useMemo(() => {
+    const override = getR2QueryOverride();
+    if (override !== null) return override;
+    const tvPath = `../../data/${tvId}.json`;
+    const tvMod = tvDataModules[tvPath];
+    return Boolean(tvMod && tvMod.useR2 === true);
+  }, [tvId]);
 
   // Synchronously compute slides (base slides + active multi-screen takeovers)
   // enriched with build-time media-manifest metadata so durations are 100% deterministic.
@@ -46,14 +106,15 @@ export default function TVPlayer() {
               const manifestEntry = getMediaManifestEntry(slide.src, mediaManifest);
               const type = detectMediaType(slide.src, slide.type, mediaManifest);
               const duration = resolveSlideDuration(slide, mediaManifest);
+              const resolved = resolveSlideMediaSources(slide.src, manifestEntry, useR2);
 
               return {
                 ...slide,
                 type,
                 originalSrc: slide.src,
-                src: manifestEntry?.src || slide.src,
-                webmSrc: manifestEntry?.webmSrc || null,
-                poster: manifestEntry?.poster || null,
+                src: resolved.src,
+                webmSrc: resolved.webmSrc,
+                poster: resolved.poster,
                 mimeType: manifestEntry?.mimeType || null,
                 intrinsicDuration: manifestEntry?.duration || null,
                 videoBehavior: slide.videoBehavior || 'loop',
@@ -73,14 +134,15 @@ export default function TVPlayer() {
         const manifestEntry = getMediaManifestEntry(mediaSrc, mediaManifest);
         const type = detectMediaType(mediaSrc, takeover.type, mediaManifest);
         const duration = resolveTakeoverDuration(takeover, mediaManifest);
+        const resolved = resolveSlideMediaSources(mediaSrc, manifestEntry, useR2);
 
         return {
           id: takeover.title || takeover.id,
           type,
           originalSrc: mediaSrc,
-          src: manifestEntry?.src || mediaSrc,
-          webmSrc: manifestEntry?.webmSrc || null,
-          poster: manifestEntry?.poster || null,
+          src: resolved.src,
+          webmSrc: resolved.webmSrc,
+          poster: resolved.poster,
           mimeType: manifestEntry?.mimeType || null,
           intrinsicDuration: manifestEntry?.duration || null,
           videoBehavior: takeover.videoBehavior || 'loop',
@@ -91,7 +153,7 @@ export default function TVPlayer() {
       .filter(Boolean);
 
     return [...baseSlides, ...takeoverSlides];
-  }, [tvId]);
+  }, [tvId, useR2]);
 
   // Preload all image slides AND video poster frames so transitions never flash black
   const preloadImageUrls = useMemo(() => {
@@ -109,39 +171,75 @@ export default function TVPlayer() {
   const hasImagesToPreload = preloadImageUrls.length > 0;
   const isLoading = hasImagesToPreload && isPreloading;
 
+  // Log device boot & resolved slide URLs once per TV mount
+  useEffect(() => {
+    sendTelemetry(tvId, 'boot', {
+      useR2,
+      device: getDeviceSnapshot(),
+      slideCount: slides.length,
+      slides: slides.map((s) => ({
+        id: s.id,
+        type: s.type,
+        src: s.src,
+        webmSrc: s.webmSrc || null,
+        poster: s.poster || null,
+        duration: s.duration,
+      })),
+    });
+  }, [tvId, slides, useR2]);
+
   useEffect(() => {
     if (!hasImagesToPreload) return;
 
     let isMounted = true;
+    const preloadStartedAt = Date.now();
 
     const preloadImages = async () => {
       const imagePromises = preloadImageUrls.map((url) => {
         return new Promise((resolve) => {
           let settled = false;
-          const done = () => {
+          const startedAt = Date.now();
+          const done = (status, extra) => {
             if (settled) return;
             settled = true;
             window.clearTimeout(timerId);
-            resolve();
+            resolve({ url, status, ms: Date.now() - startedAt, ...(extra || {}) });
           };
-          const timerId = window.setTimeout(done, 8000);
+          const timerId = window.setTimeout(() => done('timeout'), 8000);
           const img = new Image();
           img.onload = () => {
+            const dims = { w: img.naturalWidth, h: img.naturalHeight };
             if ('decode' in img && typeof img.decode === 'function') {
-              img.decode().then(done).catch(done);
+              img
+                .decode()
+                .then(() => done('ok', dims))
+                .catch((err) =>
+                  done('decode_error', {
+                    ...dims,
+                    error: err && err.message ? err.message : String(err),
+                  })
+                );
             } else {
-              done();
+              done('ok', dims);
             }
           };
-          img.onerror = done;
+          img.onerror = () => done('error');
           img.src = url;
         });
       });
 
-      await Promise.all(imagePromises);
+      const results = await Promise.all(imagePromises);
 
       if (isMounted) {
         setIsPreloading(false);
+        const failed = results.filter((r) => r.status !== 'ok');
+        sendTelemetry(tvId, 'preload_done', {
+          totalMs: Date.now() - preloadStartedAt,
+          total: results.length,
+          okCount: results.length - failed.length,
+          failedCount: failed.length,
+          results,
+        });
       }
     };
 
@@ -150,7 +248,7 @@ export default function TVPlayer() {
     return () => {
       isMounted = false;
     };
-  }, [preloadImageUrls, hasImagesToPreload]);
+  }, [preloadImageUrls, hasImagesToPreload, tvId]);
 
   // Calculate total playlist duration and slide time windows
   const playlistSchedule = useMemo(() => {
@@ -253,20 +351,29 @@ export default function TVPlayer() {
     };
   }, [currentIndex, slides, isLoading]);
 
-  // Poll version for updates
+  // Poll version for updates (cache-busting reload avoids LG webOS stale index.html cache)
   useEffect(() => {
+    let baselineVersion = BUILD_VERSION !== 'dev' ? BUILD_VERSION : null;
+
     const checkVersion = async () => {
       try {
-        const response = await fetch('/version.json?t=' + Date.now());
+        const response = await fetch('/version.json?t=' + Date.now(), { cache: 'no-store' });
         const data = await response.json();
+        const remoteVersion = String(data.timestamp);
 
         setNextCheckTime(Date.now() + 30000);
 
-        if (currentVersion === 'Unknown') {
-          setCurrentVersion(data.timestamp);
-        } else if (data.timestamp !== currentVersion) {
-          console.log('New version detected, reloading...');
-          window.location.reload();
+        if (!baselineVersion) {
+          baselineVersion = remoteVersion;
+          setCurrentVersion(remoteVersion);
+        } else if (remoteVersion !== baselineVersion) {
+          console.log('New version detected, reloading...', baselineVersion, '->', remoteVersion);
+          sendTelemetry(tvId, 'version_reload', {
+            fromVersion: baselineVersion,
+            toVersion: remoteVersion,
+          });
+          const hash = window.location.hash || '';
+          window.location.replace(`/?v=${encodeURIComponent(remoteVersion)}${hash}`);
         }
       } catch (error) {
         console.error('Failed to check version:', error);
@@ -276,7 +383,7 @@ export default function TVPlayer() {
     checkVersion();
     const intervalId = setInterval(checkVersion, 30000);
     return () => clearInterval(intervalId);
-  }, [currentVersion]);
+  }, [tvId]);
 
   const handleVideoTelemetry = useCallback((telemetry) => {
     setVideoTelemetry(telemetry);
@@ -364,6 +471,10 @@ export default function TVPlayer() {
               <span className="text-gray-400">TV:</span> {tvId}
             </div>
             <div>
+              <span className="text-gray-400">Media Source:</span>{' '}
+              {useR2 ? 'Cloudflare R2' : 'Local (/assets)'}
+            </div>
+            <div>
               <span className="text-gray-400">Sync Mode:</span> Time-Based NTP (50ms)
             </div>
             <div>
@@ -389,6 +500,11 @@ export default function TVPlayer() {
               <span className="text-gray-400">Type:</span> {currentSlide.type}
               {currentSlide.mimeType ? ` (${currentSlide.mimeType})` : ''}
             </div>
+            {lastImageError && (
+              <div className="text-red-400">
+                <span className="text-gray-400">Img Error:</span> {lastImageError}
+              </div>
+            )}
             {currentSlide.type === 'video' && (
               <>
                 <div>
@@ -433,6 +549,32 @@ export default function TVPlayer() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
+            onLoad={(e) => {
+              const imgEl = e.currentTarget;
+              if (!loggedLoadedImagesRef.current.has(currentSlide.src)) {
+                loggedLoadedImagesRef.current.add(currentSlide.src);
+                sendTelemetry(tvId, 'img_loaded', {
+                  slideId: currentSlide.id,
+                  src: currentSlide.src,
+                  w: imgEl.naturalWidth,
+                  h: imgEl.naturalHeight,
+                });
+              }
+            }}
+            onError={() => {
+              const failedSrc = currentSlide.src;
+              setLastImageError(failedSrc);
+              if (!loggedErrorImagesRef.current.has(failedSrc)) {
+                loggedErrorImagesRef.current.add(failedSrc);
+                probeUrlError(failedSrc).then((probe) => {
+                  sendTelemetry(tvId, 'img_error', {
+                    slideId: currentSlide.id,
+                    src: failedSrc,
+                    probe,
+                  });
+                });
+              }
+            }}
           />
         ) : (
           <motion.div
@@ -444,6 +586,7 @@ export default function TVPlayer() {
             transition={{ duration: 0.2 }}
           >
             <VideoSlide
+              tvId={tvId}
               slide={currentSlide}
               activeWindow={activeWindow}
               totalPlaylistDuration={totalPlaylistDuration}
