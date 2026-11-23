@@ -1,5 +1,5 @@
 {
-  "useR2": false,
+  "useR2": true,
   "slides": [
     {
       "id": "recommendation",
@@ -17,7 +17,7 @@
       "id": "felix-beats",
       "src": "https://media.hanrusplus.com/Felix.mp4",
       "duration": 15,
-      "unpublish": true
+      "unpublish": false
     },
     {
       "id": "charged-fusion",
@@ -30,7 +30,7 @@
       "id": "felix-love",
       "src": "https://media.hanrusplus.com/New_Felix_Horizontal_ENG_16X9_30s.mp4",
       "duration": 31,
-      "unpublish": true
+      "unpublish": false
     }
   ]
 }
