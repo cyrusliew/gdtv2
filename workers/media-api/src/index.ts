@@ -655,9 +655,33 @@ async function handleStreamFile(
   env: Env,
   corsHeaders: Record<string, string>
 ): Promise<Response> {
-  const cleanKey = decodeURIComponent(key).replace(/^\/+/, '');
+  let cleanKey = '';
+  try {
+    cleanKey = decodeURIComponent(key).replace(/^\/+/, '');
+  } catch {
+    return new Response('Bad Request', { status: 400, headers: corsHeaders });
+  }
   if (!cleanKey || cleanKey.includes('..')) {
     return new Response('Not Found', { status: 404, headers: corsHeaders });
+  }
+
+  if (request.method === 'HEAD') {
+    const headObj = await env.MEDIA_BUCKET.head(cleanKey);
+    if (!headObj) {
+      return new Response('Not Found', { status: 404, headers: corsHeaders });
+    }
+    const headers = new Headers(corsHeaders);
+    headObj.writeHttpMetadata(headers);
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', CONTENT_TYPE_BY_EXT[getExtension(cleanKey)] || 'application/octet-stream');
+    }
+    headers.set('ETag', headObj.httpEtag);
+    headers.set('Accept-Ranges', 'bytes');
+    headers.set('Content-Length', String(headObj.size));
+    if (!headers.has('Cache-Control')) {
+      headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+    return new Response(null, { status: 200, headers });
   }
 
   const rangeHeader = request.headers.get('Range');
@@ -672,6 +696,9 @@ async function handleStreamFile(
 
   const headers = new Headers(corsHeaders);
   object.writeHttpMetadata(headers);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', CONTENT_TYPE_BY_EXT[getExtension(cleanKey)] || 'application/octet-stream');
+  }
   headers.set('ETag', object.httpEtag);
   headers.set('Accept-Ranges', 'bytes');
   if (!headers.has('Cache-Control')) {
@@ -703,7 +730,7 @@ async function handleStreamFile(
     headers.set('Content-Length', String(object.size));
   }
 
-  return new Response(request.method === 'HEAD' ? null : object.body, {
+  return new Response(object.body, {
     status,
     headers,
   });
@@ -722,6 +749,10 @@ export default {
     try {
       if (url.pathname === '/health' && request.method === 'GET') {
         return jsonResponse({ ok: true, bucket: 'MEDIA_BUCKET' }, 200, corsHeaders);
+      }
+
+      if (url.pathname.startsWith('/r2/') && (request.method === 'GET' || request.method === 'HEAD')) {
+        return await handleStreamFile(request, url.pathname.slice('/r2/'.length), env, corsHeaders);
       }
 
       if (url.pathname.startsWith('/file/') && (request.method === 'GET' || request.method === 'HEAD')) {

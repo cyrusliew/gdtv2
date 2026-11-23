@@ -33,6 +33,7 @@ try {
 }
 
 const DEFAULT_MEDIA_API_URL = 'https://gdtv2-media-api.cyrusliew02.workers.dev';
+const LEGACY_MEDIA_BASES = ['https://media.hanrusplus.com'];
 const MEDIA_API_URL = (
   process.env.MEDIA_API_URL ||
   process.env.NEXT_PUBLIC_MEDIA_API_URL ||
@@ -853,6 +854,11 @@ async function syncR2MediaManifest(manifest) {
   try {
     for (const [publicUrl, entry] of Object.entries(r2Manifest)) {
       const normalizedUrl = normalizeAssetPath(publicUrl);
+      const legacyAliasUrls = entry.key
+        ? LEGACY_MEDIA_BASES.map((base) => normalizeAssetPath(`${base.replace(/\/+$/, '')}/${entry.key}`)).filter(
+            (alias) => alias && alias !== normalizedUrl
+          )
+        : [];
       const expectedSourceHash = crypto
         .createHash('sha256')
         .update(`${TRANSCODE_PROFILE_VERSION}:${entry.etag || entry.size || ''}`)
@@ -873,7 +879,10 @@ async function syncR2MediaManifest(manifest) {
       };
 
       const isVideo = entry.type === 'video';
-      const isReferenced = referencedUrls.size === 0 || referencedUrls.has(normalizedUrl);
+      const isReferenced =
+        referencedUrls.size === 0 ||
+        referencedUrls.has(normalizedUrl) ||
+        legacyAliasUrls.some((alias) => referencedUrls.has(alias));
       const alreadyOptimizedInR2 =
         entry.sourceHash === expectedSourceHash &&
         Boolean(entry.poster) &&
@@ -958,6 +967,10 @@ async function syncR2MediaManifest(manifest) {
       }
 
       manifest[normalizedUrl] = finalEntry;
+      // Keep legacy media.hanrusplus.com keys aliased to the new same-origin tv.hanrusplus.com/r2 URLs
+      for (const alias of legacyAliasUrls) {
+        manifest[alias] = finalEntry;
+      }
     }
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });

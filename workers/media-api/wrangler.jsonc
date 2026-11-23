@@ -3,8 +3,11 @@
 	"name": "gdtv2-media-api",
 	"main": "src/index.ts",
 	"workers_dev": true,
-	// Optional custom domain (only if hanrusplus.com is an active zone in this Cloudflare account):
-	// "routes": [{ "pattern": "media-api.hanrusplus.com", "custom_domain": true }],
+	// Serve R2 media same-origin under tv.hanrusplus.com/r2/* so LG Signage TVs
+	// use the same hostname, DNS, and Let's Encrypt TLS certificate as the app.
+	"routes": [
+		{ "pattern": "tv.hanrusplus.com/r2/*", "zone_name": "hanrusplus.com" }
+	],
 	"compatibility_date": "2026-11-22",
 	"compatibility_flags": [
 		"nodejs_compat"
@@ -27,10 +30,10 @@
 		}
 	],
 	"vars": {
-		// Replace with your R2 custom domain (e.g. "https://media.yourdomain.com")
-		"PUBLIC_MEDIA_URL": "https://media.hanrusplus.com",
+		// Same-origin R2 media base URL routed through this Worker (tv.hanrusplus.com/r2/*)
+		"PUBLIC_MEDIA_URL": "https://tv.hanrusplus.com/r2",
 		// Comma-separated list of origins allowed to call this Worker from the browser
-		"ALLOWED_ORIGINS": "https://cyrusliew.github.io,http://localhost:5173,http://localhost:4001",
+		"ALLOWED_ORIGINS": "https://tv.hanrusplus.com,https://cyrusliew.github.io,http://localhost:5173,http://localhost:4001",
 		// Your TinaCloud Client ID (matches GitHub repo var TINA_CLIENT_ID)
 		"TINA_CLIENT_ID": "5a9e0507-fe8a-4156-ba1c-e1f57040c555",
 		// TinaCloud branch used to validate logged-in TinaCMS editor tokens

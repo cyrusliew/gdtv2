@@ -117,20 +117,24 @@ export default function TVPlayer() {
     const preloadImages = async () => {
       const imagePromises = preloadImageUrls.map((url) => {
         return new Promise((resolve) => {
+          let settled = false;
+          const done = () => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timerId);
+            resolve();
+          };
+          const timerId = window.setTimeout(done, 8000);
           const img = new Image();
+          img.onload = () => {
+            if ('decode' in img && typeof img.decode === 'function') {
+              img.decode().then(done).catch(done);
+            } else {
+              done();
+            }
+          };
+          img.onerror = done;
           img.src = url;
-          if ('decode' in img && typeof img.decode === 'function') {
-            img
-              .decode()
-              .then(resolve)
-              .catch(() => {
-                img.onload = resolve;
-                img.onerror = resolve;
-              });
-          } else {
-            img.onload = resolve;
-            img.onerror = resolve;
-          }
         });
       });
 
