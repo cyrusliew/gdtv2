@@ -3,7 +3,8 @@
     {
       "id": "recommendation",
       "src": "https://media.hanrusplus.com/GC-OUR-RECOMMENDATION-B1-B4-Smaller-File-.mp4",
-      "duration": 228
+      "duration": 228,
+      "unpublish": true
     },
     {
       "id": "coffee",
@@ -14,7 +15,8 @@
     {
       "id": "felix-beats",
       "src": "https://media.hanrusplus.com/Felix.mp4",
-      "duration": 15
+      "duration": 15,
+      "unpublish": true
     },
     {
       "id": "charged-fusion",
@@ -26,7 +28,8 @@
     {
       "id": "felix-love",
       "src": "https://media.hanrusplus.com/New_Felix_Horizontal_ENG_16X9_30s.mp4",
-      "duration": 31
+      "duration": 31,
+      "unpublish": true
     }
   ]
 }
