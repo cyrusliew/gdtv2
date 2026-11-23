@@ -14,6 +14,8 @@ const SEEK_COOLDOWN_MS = 4000;
 const LOOP_BOUNDARY_MARGIN_SEC = 0.5;
 
 let cachedH264Support = null;
+const loggedVideoMounts = new Set();
+const loggedVideoPlaying = new Set();
 
 function browserSupportsH264() {
   if (cachedH264Support !== null) return cachedH264Support;
@@ -97,13 +99,17 @@ export default function VideoSlide({
     let loggedStalled = false;
     let lastSeekAtMs = 0;
 
-    sendTelemetry(tvId, 'video_mount', {
-      slideId: slide.id,
-      activeSrc,
-      primarySrc: slide.src,
-      webmSrc: slide.webmSrc || null,
-      h264Supported: browserSupportsH264(),
-    });
+    const telemetryKey = `${tvId || 'tv'}|${activeSrc}`;
+    if (!loggedVideoMounts.has(telemetryKey)) {
+      loggedVideoMounts.add(telemetryKey);
+      sendTelemetry(tvId, 'video_mount', {
+        slideId: slide.id,
+        activeSrc,
+        primarySrc: slide.src,
+        webmSrc: slide.webmSrc || null,
+        h264Supported: browserSupportsH264(),
+      });
+    }
 
     // Ensure src is set (handles React StrictMode double-mount and fallback switches)
     if (video.getAttribute('src') !== activeSrc) {
@@ -215,15 +221,18 @@ export default function VideoSlide({
     const handlePlaying = () => {
       if (!isMounted || loggedPlaying) return;
       loggedPlaying = true;
-      sendTelemetry(tvId, 'video_playing', {
-        slideId: slide.id,
-        src: activeSrc,
-        readyState: video.readyState,
-        videoWidth: video.videoWidth,
-        videoHeight: video.videoHeight,
-        duration: Number.isFinite(video.duration) ? Number(video.duration.toFixed(2)) : null,
-        currentTime: Number.isFinite(video.currentTime) ? Number(video.currentTime.toFixed(2)) : 0,
-      });
+      if (!loggedVideoPlaying.has(telemetryKey)) {
+        loggedVideoPlaying.add(telemetryKey);
+        sendTelemetry(tvId, 'video_playing', {
+          slideId: slide.id,
+          src: activeSrc,
+          readyState: video.readyState,
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+          duration: Number.isFinite(video.duration) ? Number(video.duration.toFixed(2)) : null,
+          currentTime: Number.isFinite(video.currentTime) ? Number(video.currentTime.toFixed(2)) : 0,
+        });
+      }
     };
 
     const handleStalled = () => {
