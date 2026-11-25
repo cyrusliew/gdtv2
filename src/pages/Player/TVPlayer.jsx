@@ -63,7 +63,11 @@ const takeoverModules = import.meta.glob('../../data/takeovers/*.json', { eager:
 
 export default function TVPlayer() {
   const { tvId } = useParams();
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [slideState, setSlideState] = useState({ current: 0, previous: null, turn: 0 });
+  const currentIndex = slideState.current;
+  const previousIndex = slideState.previous;
+  const [videoReadyKey, setVideoReadyKey] = useState(null);
+  const [videoFadeDoneKey, setVideoFadeDoneKey] = useState(null);
   const [isPreloading, setIsPreloading] = useState(true);
 
   // Debug Mode State
@@ -269,7 +273,7 @@ export default function TVPlayer() {
 
       if (isMounted) {
         // Set the exact NTP slide index before leaving loading state (no 1-frame flash of slide 0)
-        setCurrentIndex(computeActiveIndexAt(Date.now()));
+        setSlideState({ current: computeActiveIndexAt(Date.now()), previous: null, turn: 0 });
         setIsPreloading(false);
         const failed = results.filter((r) => r.status !== 'ok');
         sendTelemetry(tvId, 'preload_done', {
@@ -301,7 +305,11 @@ export default function TVPlayer() {
         setCurrentTime(nowMs);
       }
       const activeIndex = computeActiveIndexAt(nowMs);
-      setCurrentIndex((prevIndex) => (prevIndex !== activeIndex ? activeIndex : prevIndex));
+      setSlideState((prev) =>
+        prev.current !== activeIndex
+          ? { current: activeIndex, previous: prev.current, turn: prev.turn + 1 }
+          : prev
+      );
     };
 
     syncToSchedule();
@@ -405,6 +413,20 @@ export default function TVPlayer() {
     setVideoTelemetry(telemetry);
   }, []);
 
+  const handleVideoReady = useCallback((key) => {
+    setVideoReadyKey(key);
+  }, []);
+
+  // After a video slide finishes fading in (300ms), hide inactive image layers so
+  // LG webOS doesn't keep compositing idle images behind a long-running video.
+  useEffect(() => {
+    if (!videoReadyKey) return undefined;
+    const timerId = window.setTimeout(() => {
+      setVideoFadeDoneKey(videoReadyKey);
+    }, 350);
+    return () => window.clearTimeout(timerId);
+  }, [videoReadyKey]);
+
   // Manual next-slide tap shifts local schedule offset so manual testing works with time sync
   const handleNextSlide = () => {
     if (playlistSchedule.windows.length <= 1) return;
@@ -413,7 +435,7 @@ export default function TVPlayer() {
     const nowSec = Date.now() / 1000;
     const rawNowMod = nowSec % playlistSchedule.totalDuration;
     setManualOffsetSec(nextWin.start - rawNowMod + 0.05);
-    setCurrentIndex(nextIdx);
+    setSlideState((prev) => ({ current: nextIdx, previous: prev.current, turn: prev.turn + 1 }));
   };
 
   const handleDebugTrigger = () => {
@@ -551,70 +573,94 @@ export default function TVPlayer() {
       )}
 
       {/* Keep image slides persistently mounted with CSS opacity crossfades so LG
-          webOS Chromium 79 never re-decodes images or stalls WAAPI animations on transitions */}
-      {slides.map((slide, idx) => {
-        if (slide.type !== 'image') return null;
-        const isActive = idx === safeIndex;
-        const hideForVideo = currentSlide.type === 'video';
-        return (
-          <img
-            key={`${slide.id}-${idx}-img`}
-            src={slide.src}
-            alt={slide.id || 'slide'}
-            className="absolute inset-0 w-full h-full object-contain pointer-events-none"
-            style={{
-              opacity: isActive ? 1 : 0,
-              visibility: hideForVideo ? 'hidden' : 'visible',
-              zIndex: isActive ? 10 : 1,
-              transition: hideForVideo ? 'none' : 'opacity 300ms ease-in-out',
-            }}
-            onLoad={(e) => {
-              const imgEl = e.currentTarget;
-              if (!loggedLoadedImagesRef.current.has(slide.src)) {
-                loggedLoadedImagesRef.current.add(slide.src);
-                sendTelemetry(tvId, 'img_loaded', {
-                  slideId: slide.id,
-                  src: slide.src,
-                  w: imgEl.naturalWidth,
-                  h: imgEl.naturalHeight,
-                });
-              }
-            }}
-            onError={() => {
-              const failedSrc = slide.src;
-              setLastImageError(failedSrc);
-              if (!loggedErrorImagesRef.current.has(failedSrc)) {
-                loggedErrorImagesRef.current.add(failedSrc);
-                probeUrlError(failedSrc).then((probe) => {
-                  sendTelemetry(tvId, 'img_error', {
-                    slideId: slide.id,
-                    src: failedSrc,
-                    probe,
-                  });
-                });
-              }
-            }}
-          />
-        );
-      })}
+          webOS Chromium 79 never re-decodes images or stalls WAAPI animations on transitions.
+          When transitioning from an image to a video, hold the outgoing image at opacity 1
+          until the video starts playing, then crossfade both smoothly over 300ms. */}
+      {(() => {
+        const activeVideoKey =
+          currentSlide.type === 'video'
+            ? `${currentSlide.id}-${safeIndex}-${slideState.turn}-vid`
+            : null;
+        const isVideoReady = Boolean(activeVideoKey && videoReadyKey === activeVideoKey);
+        const isVideoFadeDone = Boolean(activeVideoKey && videoFadeDoneKey === activeVideoKey);
 
-      {/* Mount only the single active video slide so Chromium 79 never allocates
-          two hardware video decoders simultaneously */}
-      {currentSlide.type === 'video' && (
-        <div
-          key={`${currentSlide.id}-${safeIndex}-vid`}
-          className="absolute inset-0 w-full h-full z-20"
-        >
-          <VideoSlide
-            tvId={tvId}
-            slide={currentSlide}
-            activeWindow={activeWindow}
-            totalPlaylistDuration={totalPlaylistDuration}
-            manualOffsetSec={manualOffsetSec}
-            onTelemetry={debugMode ? handleVideoTelemetry : null}
-          />
-        </div>
-      )}
+        return (
+          <>
+            {slides.map((slide, idx) => {
+              if (slide.type !== 'image') return null;
+              const isActiveImage = currentSlide.type === 'image' && idx === safeIndex;
+              const isHeldOutgoingImage =
+                currentSlide.type === 'video' && !isVideoReady && idx === previousIndex;
+              const isVisible = isActiveImage || isHeldOutgoingImage;
+              const hideBehindPlayingVideo = currentSlide.type === 'video' && isVideoFadeDone;
+
+              return (
+                <img
+                  key={`${slide.id}-${idx}-img`}
+                  src={slide.src}
+                  alt={slide.id || 'slide'}
+                  className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                  style={{
+                    opacity: isVisible ? 1 : 0,
+                    visibility: hideBehindPlayingVideo ? 'hidden' : 'visible',
+                    zIndex: isVisible ? 10 : 1,
+                    transition: 'opacity 300ms ease-in-out',
+                  }}
+                  onLoad={(e) => {
+                    const imgEl = e.currentTarget;
+                    if (!loggedLoadedImagesRef.current.has(slide.src)) {
+                      loggedLoadedImagesRef.current.add(slide.src);
+                      sendTelemetry(tvId, 'img_loaded', {
+                        slideId: slide.id,
+                        src: slide.src,
+                        w: imgEl.naturalWidth,
+                        h: imgEl.naturalHeight,
+                      });
+                    }
+                  }}
+                  onError={() => {
+                    const failedSrc = slide.src;
+                    setLastImageError(failedSrc);
+                    if (!loggedErrorImagesRef.current.has(failedSrc)) {
+                      loggedErrorImagesRef.current.add(failedSrc);
+                      probeUrlError(failedSrc).then((probe) => {
+                        sendTelemetry(tvId, 'img_error', {
+                          slideId: slide.id,
+                          src: failedSrc,
+                          probe,
+                        });
+                      });
+                    }
+                  }}
+                />
+              );
+            })}
+
+            {/* Mount only the single active video slide so Chromium 79 never allocates
+                two hardware video decoders simultaneously; fade in smoothly once playing */}
+            {currentSlide.type === 'video' && (
+              <div
+                key={activeVideoKey}
+                className="absolute inset-0 w-full h-full z-20"
+                style={{
+                  opacity: isVideoReady ? 1 : 0,
+                  transition: 'opacity 300ms ease-in-out',
+                }}
+              >
+                <VideoSlide
+                  tvId={tvId}
+                  slide={currentSlide}
+                  activeWindow={activeWindow}
+                  totalPlaylistDuration={totalPlaylistDuration}
+                  manualOffsetSec={manualOffsetSec}
+                  onTelemetry={debugMode ? handleVideoTelemetry : null}
+                  onReady={() => handleVideoReady(activeVideoKey)}
+                />
+              </div>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }

@@ -66,9 +66,11 @@ export default function VideoSlide({
   totalPlaylistDuration,
   manualOffsetSec = 0,
   onTelemetry,
+  onReady,
 }) {
   const videoRef = useRef(null);
   const onTelemetryRef = useRef(onTelemetry);
+  const onReadyRef = useRef(onReady);
   const [fallbackState, setFallbackState] = useState({
     slideKey: `${slide.src || ''}|${slide.webmSrc || ''}`,
     useWebmFallback: false,
@@ -86,6 +88,10 @@ export default function VideoSlide({
     onTelemetryRef.current = onTelemetry;
   }, [onTelemetry]);
 
+  useEffect(() => {
+    onReadyRef.current = onReady;
+  }, [onReady]);
+
   const behavior = slide.videoBehavior === 'hold' ? 'hold' : 'loop';
   const manifestDuration = slide.intrinsicDuration || null;
   const isMultiScreenSynced = Boolean(slide.syncGroup);
@@ -97,7 +103,20 @@ export default function VideoSlide({
     let isMounted = true;
     let loggedPlaying = false;
     let loggedStalled = false;
+    let notifiedReady = false;
     let lastSeekAtMs = 0;
+
+    const notifyReady = () => {
+      if (notifiedReady || !isMounted) return;
+      notifiedReady = true;
+      if (onReadyRef.current) {
+        onReadyRef.current();
+      }
+    };
+
+    // Safety fallback so a slow network still fades the video in rather than holding
+    // the previous slide indefinitely.
+    const readyFallbackTimerId = window.setTimeout(notifyReady, 1500);
 
     const telemetryKey = `${tvId || 'tv'}|${activeSrc}`;
     if (!loggedVideoMounts.has(telemetryKey)) {
@@ -184,6 +203,7 @@ export default function VideoSlide({
 
       if (behavior === 'hold' && videoDuration > 0 && elapsedInSlide >= videoDuration - 0.05) {
         video.pause();
+        notifyReady();
       } else {
         safePlay();
       }
@@ -219,7 +239,9 @@ export default function VideoSlide({
     };
 
     const handlePlaying = () => {
-      if (!isMounted || loggedPlaying) return;
+      if (!isMounted) return;
+      notifyReady();
+      if (loggedPlaying) return;
       loggedPlaying = true;
       if (!loggedVideoPlaying.has(telemetryKey)) {
         loggedVideoPlaying.add(telemetryKey);
@@ -292,6 +314,7 @@ export default function VideoSlide({
         useWebmFallback,
         hasError: true,
       });
+      notifyReady();
       reportTelemetry(0, 0, msg);
     };
 
@@ -359,6 +382,7 @@ export default function VideoSlide({
 
     return () => {
       isMounted = false;
+      window.clearTimeout(readyFallbackTimerId);
       window.clearInterval(driftIntervalId);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       video.removeEventListener('canplay', handleCanPlay);
@@ -410,7 +434,6 @@ export default function VideoSlide({
     <video
       ref={videoRef}
       src={activeSrc}
-      poster={slide.poster || undefined}
       className="w-full h-full object-contain"
       autoPlay
       muted
