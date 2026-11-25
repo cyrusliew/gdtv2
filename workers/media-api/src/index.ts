@@ -328,8 +328,13 @@ async function handleManifest(
     }
   >();
 
-  for (const obj of objects) {
-    if (!obj.key.startsWith(GENERATED_PREFIX)) continue;
+  // Process .generated/ objects oldest -> newest so newer transcode profile hashes
+  // always win over stale artifacts even if their hash sorts earlier alphabetically.
+  const generatedObjects = objects
+    .filter((obj) => obj.key.startsWith(GENERATED_PREFIX))
+    .sort((a, b) => a.uploaded.getTime() - b.uploaded.getTime());
+
+  for (const obj of generatedObjects) {
     const meta = obj.customMetadata || {};
     const origKey = meta.originalKey;
     if (!origKey) continue;

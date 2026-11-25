@@ -53,7 +53,7 @@ const MAX_WIDTH = 1920;
 const MAX_HEIGHT = 1080;
 const MAX_FPS = 30;
 const MAX_BITRATE_BPS = 12_000_000;
-const TRANSCODE_PROFILE_VERSION = 'c79-h264-1080p30-vp9-v2';
+const TRANSCODE_PROFILE_VERSION = 'c79-h264-1080p30-bt709-vp9-v3';
 const IMAGE_OPTIMIZE_PROFILE_VERSION = 'c79-srgb-1080p-q85-v1';
 
 // ── Toolchain Detection ─────────────────────────────────────────────────────
@@ -334,49 +334,116 @@ function probeVideoWithFfprobe(filePath) {
     level: Number.isFinite(Number(videoStream?.level)) ? Number(videoStream.level) : null,
     fps: parseFrameRate(videoStream?.avg_frame_rate) || parseFrameRate(videoStream?.r_frame_rate),
     bitRate: Number.isFinite(bitRateRaw) && bitRateRaw > 0 ? bitRateRaw : null,
+    colorSpace: videoStream?.color_space || null,
+    colorTransfer: videoStream?.color_transfer || null,
+    colorPrimaries: videoStream?.color_primaries || null,
+    colorRange: videoStream?.color_range || null,
     hasAudio: Boolean(audioStream),
     formatName: parsed.format?.format_name || null,
   };
 }
 
-function transcodeToH264Mp4(inputPath, outputPath) {
-  execFileSync(
-    'ffmpeg',
-    [
-      '-y',
-      '-i',
-      inputPath,
-      '-c:v',
-      'libx264',
-      '-profile:v',
-      'high',
-      '-level:v',
-      '4.1',
-      '-pix_fmt',
-      'yuv420p',
-      '-vf',
-      `scale='min(${MAX_WIDTH},iw)':'min(${MAX_HEIGHT},ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=${MAX_FPS}`,
-      '-crf',
-      '23',
-      '-maxrate',
-      '8M',
-      '-bufsize',
-      '16M',
-      '-preset',
-      'medium',
-      '-g',
-      String(MAX_FPS),
-      '-keyint_min',
-      String(MAX_FPS),
-      '-sc_threshold',
-      '0',
-      '-movflags',
-      '+faststart',
-      '-an',
-      outputPath,
-    ],
-    { stdio: 'pipe' }
+function isHdrProbe(probe) {
+  if (!probe) return false;
+  return (
+    probe.colorTransfer === 'smpte2084' ||
+    probe.colorTransfer === 'arib-std-b67' ||
+    probe.colorPrimaries === 'bt2020' ||
+    probe.colorSpace === 'bt2020nc' ||
+    probe.colorSpace === 'bt2020c'
   );
+}
+
+function buildSdrBt709VideoFilter(sourceProbe) {
+  const scaleAndFps = [
+    `scale='min(${MAX_WIDTH},iw)':'min(${MAX_HEIGHT},ih)':force_original_aspect_ratio=decrease:out_color_matrix=bt709:out_range=tv`,
+    `scale=trunc(iw/2)*2:trunc(ih/2)*2:in_color_matrix=bt709:out_color_matrix=bt709:in_range=tv:out_range=tv`,
+    `fps=${MAX_FPS}`,
+  ];
+
+  // If the source is HDR (PQ/HLG/BT.2020), tone-map down to BT.709 SDR first
+  if (isHdrProbe(sourceProbe)) {
+    return [
+      'zscale=t=linear:npl=100',
+      'format=gbrpf32le',
+      'zscale=p=bt709',
+      'tonemap=tonemap=hable:desat=0',
+      'zscale=t=bt709:m=bt709:r=tv',
+      ...scaleAndFps,
+      'format=yuv420p',
+      'setparams=range=tv:color_primaries=bt709:color_trc=bt709:colorspace=bt709',
+    ].join(',');
+  }
+
+  return [
+    ...scaleAndFps,
+    'format=yuv420p',
+    'setparams=range=tv:color_primaries=bt709:color_trc=bt709:colorspace=bt709',
+  ].join(',');
+}
+
+function transcodeToH264Mp4(inputPath, outputPath, sourceProbe = null) {
+  const runFfmpeg = (vf) => {
+    execFileSync(
+      'ffmpeg',
+      [
+        '-y',
+        '-i',
+        inputPath,
+        '-c:v',
+        'libx264',
+        '-profile:v',
+        'high',
+        '-level:v',
+        '4.1',
+        '-pix_fmt',
+        'yuv420p',
+        '-vf',
+        vf,
+        '-color_range',
+        'tv',
+        '-colorspace',
+        'bt709',
+        '-color_primaries',
+        'bt709',
+        '-color_trc',
+        'bt709',
+        '-x264-params',
+        'colorprim=bt709:transfer=bt709:colormatrix=bt709:fullrange=off',
+        '-crf',
+        '23',
+        '-maxrate',
+        '8M',
+        '-bufsize',
+        '16M',
+        '-preset',
+        'medium',
+        '-g',
+        String(MAX_FPS),
+        '-keyint_min',
+        String(MAX_FPS),
+        '-sc_threshold',
+        '0',
+        '-movflags',
+        '+faststart+write_colr',
+        '-an',
+        outputPath,
+      ],
+      { stdio: 'pipe' }
+    );
+  };
+
+  try {
+    runFfmpeg(buildSdrBt709VideoFilter(sourceProbe));
+  } catch (err) {
+    // Fallback if ffmpeg build lacks zscale/tonemap on an HDR source
+    if (isHdrProbe(sourceProbe)) {
+      console.warn('⚠️  HDR zscale tonemap unavailable; falling back to BT.709 scale filter:', err.message);
+      runFfmpeg(buildSdrBt709VideoFilter(null));
+    } else {
+      throw err;
+    }
+  }
 }
 
 function transcodeToVp9Webm(inputPath, outputPath) {
@@ -391,7 +458,15 @@ function transcodeToVp9Webm(inputPath, outputPath) {
       '-pix_fmt',
       'yuv420p',
       '-vf',
-      `scale='min(${MAX_WIDTH},iw)':'min(${MAX_HEIGHT},ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=${MAX_FPS}`,
+      buildSdrBt709VideoFilter(null),
+      '-color_range',
+      'tv',
+      '-colorspace',
+      'bt709',
+      '-color_primaries',
+      'bt709',
+      '-color_trc',
+      'bt709',
       '-crf',
       '33',
       '-b:v',
@@ -423,7 +498,9 @@ function extractPosterJpeg(inputPath, outputPath) {
       '-q:v',
       '3',
       '-vf',
-      `scale='min(${MAX_WIDTH},iw)':'min(${MAX_HEIGHT},ih)':force_original_aspect_ratio=decrease`,
+      `scale='min(${MAX_WIDTH},iw)':'min(${MAX_HEIGHT},ih)':force_original_aspect_ratio=decrease:in_color_matrix=bt709:out_color_matrix=bt709:in_range=tv:out_range=pc`,
+      '-color_range',
+      'pc',
       outputPath,
     ],
     { stdio: 'pipe' }
@@ -566,8 +643,8 @@ function processVideo(filePath, file, detected) {
       const outPath = path.join(GENERATED_DIR, outName);
 
       if (!fs.existsSync(outPath)) {
-        console.log(`🎬 Transcoding ${file} for LG Chromium 79 (H.264 1080p30 Level 4.1 faststart muted)...`);
-        transcodeToH264Mp4(filePath, outPath);
+        console.log(`🎬 Transcoding ${file} for LG Chromium 79 (H.264 BT.709 TV-range 1080p30 Level 4.1 faststart muted)...`);
+        transcodeToH264Mp4(filePath, outPath, probe);
         const origMb = (stat.size / (1024 * 1024)).toFixed(2);
         const newMb = (fs.statSync(outPath).size / (1024 * 1024)).toFixed(2);
         console.log(`✅ Transcoded ${file}: ${origMb}MB → ${newMb}MB`);
@@ -996,7 +1073,8 @@ async function syncR2MediaManifest(manifest) {
 
           fs.writeFileSync(srcTmp, Buffer.from(await dlRes.arrayBuffer()));
 
-          transcodeToH264Mp4(srcTmp, outTmp);
+          const srcProbe = HAS_FFPROBE ? probeVideoWithFfprobe(srcTmp) : null;
+          transcodeToH264Mp4(srcTmp, outTmp, srcProbe);
           transcodeToVp9Webm(outTmp, webmTmp);
           extractPosterJpeg(outTmp, posterTmp);
 
@@ -1027,10 +1105,29 @@ async function syncR2MediaManifest(manifest) {
           });
 
           console.log(
-            `✅ Uploaded Chromium 79 H.264 + VP9 WebM + poster to R2 for ${entry.key} (${
+            `✅ Uploaded Chromium 79 BT.709 H.264 + VP9 WebM + poster to R2 for ${entry.key} (${
               outProbe.duration ? `${outProbe.duration}s` : 'unknown duration'
             })`
           );
+
+          // Delete superseded .generated/ artifacts for this video so old profile hashes
+          // never linger in R2 or win alphabetically in /media/manifest
+          const staleUrls = [entry.src, entry.webmSrc, entry.poster].filter(
+            (u) => typeof u === 'string' && u.includes('/.generated/') && u !== uploadedVideo.src && u !== uploadedWebm.src && u !== uploadedPoster.src
+          );
+          for (const staleUrl of staleUrls) {
+            const genIdx = staleUrl.indexOf('.generated/');
+            if (genIdx === -1) continue;
+            const staleKey = decodeURIComponent(staleUrl.slice(genIdx).split(/[?#]/)[0]);
+            try {
+              await fetch(`${MEDIA_API_URL}/media/object?key=${encodeURIComponent(staleKey)}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${CI_UPLOAD_TOKEN}` },
+              });
+            } catch {
+              // Non-fatal cleanup
+            }
+          }
 
           finalEntry = {
             ...finalEntry,
